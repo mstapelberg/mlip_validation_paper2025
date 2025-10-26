@@ -16,6 +16,7 @@ Usage:
 """
 
 import ast, csv, argparse, numpy as np, matplotlib.pyplot as plt
+import os, json
 from matplotlib import gridspec
 from matplotlib.patches import Rectangle, ConnectionPatch
 from typing import Dict, List, Tuple
@@ -24,12 +25,12 @@ from sklearn.decomposition import PCA
 # Set global font and font sizes - use Helvetica and increase all by 2 points
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Helvetica', 'Arial', 'DejaVu Sans']
-plt.rcParams['font.size'] = 12  # Default is usually 10
-plt.rcParams['axes.titlesize'] = 14  # Default is usually 12
-plt.rcParams['axes.labelsize'] = 14  # Default is usually 12
-plt.rcParams['xtick.labelsize'] = 12  # Default is usually 10
-plt.rcParams['ytick.labelsize'] = 12  # Default is usually 10
-plt.rcParams['legend.fontsize'] = 14  # Increased from 12 to 14 (2 points bigger)
+plt.rcParams['font.size'] = 14  # Default is usually 10
+plt.rcParams['axes.titlesize'] = 16  # Default is usually 12
+plt.rcParams['axes.labelsize'] = 18  # Increased by 2
+plt.rcParams['xtick.labelsize'] = 16  # Increased by 2
+plt.rcParams['ytick.labelsize'] = 16  # Increased by 2
+plt.rcParams['legend.fontsize'] = 16  # Increased from 12 to 14 (2 points bigger)
 
 # Try to import adjustText for smart label positioning
 try:
@@ -172,6 +173,63 @@ def load_summary(path: str):
         assert 'mlip_gen0' in v and 'mlip_gen10' in v, f"Missing gen0/gen10 for {k}"
     return sorted(per_comp.keys()), per_comp
 
+def load_summary_json(path: str):
+    """
+    Accepts a minimal JSON produced by analyse_neb_results or converted from CSV.
+    Expected shapes:
+      {"records": [
+          {"composition": str,
+           "vasp": [..],
+           "mlip_gen0": [..], "mlip_gen10": [..],
+           "bar_vasp": float, "bar_gen0": float, "bar_gen10": float}
+      ]}
+    or list of such records directly.
+    Returns (keys, per_comp) like load_summary.
+    """
+    with open(path, 'r') as f:
+        data = json.load(f)
+    records = data.get('records', data if isinstance(data, list) else [])
+    per_comp = {}
+    for r in records:
+        key = r['composition']
+        per_comp[key] = {
+            'vasp': list(r.get('vasp', [])),
+            'bar_vasp': float(r.get('bar_vasp', float('nan')))
+        }
+        if 'mlip_gen0' in r:
+            per_comp[key]['mlip_gen0'] = list(r['mlip_gen0'])
+            if 'bar_gen0' in r:
+                per_comp[key]['bar_gen0'] = float(r['bar_gen0'])
+        if 'mlip_gen10' in r:
+            per_comp[key]['mlip_gen10'] = list(r['mlip_gen10'])
+            if 'bar_gen10' in r:
+                per_comp[key]['bar_gen10'] = float(r['bar_gen10'])
+    return sorted(per_comp.keys()), per_comp
+
+def load_summary_any(path: str):
+    p = (path or '').lower()
+    if p.endswith('.json'):
+        return load_summary_json(path)
+    return load_summary(path)
+
+def resolve_default_summary():
+    """Look for a default summary next to this script, preferring minimal JSON."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        'summary_barriers.min.json',
+        'summary_barriers.json',
+        'summary_barriers.csv',
+    ]
+    for name in candidates:
+        p = os.path.join(here, name)
+        if os.path.isfile(p):
+            return p
+    # Fallback to current working directory CSV
+    if os.path.isfile('summary_barriers.csv'):
+        return 'summary_barriers.csv'
+    # Return first candidate path (likely missing) to trigger a clear error upstream
+    return os.path.join(here, 'summary_barriers.min.json')
+
 # --------------------------- Feasible polytope overlay ---------------------------
 def sample_feasible_region(n: int = 6000, seed: int = 0):
     """V≥0.80, Zr≤0.05, (Cr+Ti+W+Zr)≤0.20, sum=1 → (n,5) fractions."""
@@ -309,7 +367,7 @@ def add_inset_zoom(ax, ordered_keys: List[str], coords: Dict[str, Tuple[float, f
             if f in coords:
                 x, y = coords[f]
                 if x_min <= x <= x_max and y_min <= y <= y_max:
-                    axins.scatter([x], [y], c='#CFCFCF', s=18, alpha=0.65, edgecolors='none', zorder=2)
+                    axins.scatter([x], [y], c='#CFCFCF', s=30, alpha=0.65, edgecolors='none', zorder=2)
     
     # Show the zoomed SIMPLE points with their labels
     for idx in indices_to_zoom:
@@ -318,7 +376,7 @@ def add_inset_zoom(ax, ordered_keys: List[str], coords: Dict[str, Tuple[float, f
             base = k.split('_')[0]
             if base in coords:
                 x, y = coords[base]
-                axins.scatter([x], [y], c=COLOR_RED, s=62, alpha=0.92, edgecolors='black', linewidths=0.6, zorder=3)
+                axins.scatter([x], [y], c=COLOR_RED, s=64, alpha=0.92, edgecolors='black', linewidths=0.6, zorder=3)
                 axins.text(x, y, str(idx), ha='center', va='center', fontsize=12.2,
                           bbox=dict(boxstyle='circle,pad=0.22', fc='white', ec=COLOR_RED, lw=1.0, alpha=0.95),
                           color='black', zorder=4)
@@ -407,15 +465,15 @@ def parity_panel(ax, vasp: List[float], gen0: List[float], gen10: List[float], l
                    color='black', zorder=4,
                    arrowprops=dict(arrowstyle='->', color=COLOR_BLUE, lw=1.5, alpha=0.9))
     
-    ax.set_xlabel('VASP barrier (eV)', fontsize=16, fontweight='bold')
-    ax.set_ylabel('MLIP barrier (eV)', fontsize=16, fontweight='bold')
-    ax.tick_params(labelsize=14)
+    ax.set_xlabel('VASP barrier (eV)', fontweight='bold')
+    ax.set_ylabel('MLIP barrier (eV)', fontweight='bold')
+    ax.tick_params()
     
     # Set fixed y-axis limits for better spacing
     ax.set_ylim(-1.0, 6.0)
     ax.set_xlim(lo - 0.3, hi + 0.3)
     
-    ax.legend(frameon=False, loc='upper left', fontsize=14)
+    ax.legend(frameon=False, loc='upper left')
 
 # --------------------------- Main figure ---------------------------
 def plot_map_and_neb(summary_csv: str,
@@ -439,7 +497,7 @@ def plot_map_and_neb(summary_csv: str,
                      overlay_polytope: bool = True):
 
     # 1) Load
-    simple_keys, neb = load_summary(summary_csv)
+    simple_keys, neb = load_summary_any(summary_csv)
     base_formulas = [k.split('_')[0] for k in simple_keys]
     dataset = get_dataset_compositions(max_generation=max_generation_bg)
 
@@ -495,7 +553,7 @@ def plot_map_and_neb(summary_csv: str,
             cx = Z_poly[:, 0].mean()
             cy_top = Z_poly[:, 1].max()
             axL.text(cx, cy_top + 0.8, 'Feasible region', ha='center', va='bottom',
-                    fontsize=18, color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2)
+                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2)
     else:
         # still compute Z_poly if zoom='manifold'
         if zoom == 'manifold':
@@ -505,25 +563,25 @@ def plot_map_and_neb(summary_csv: str,
     if dataset:
         ds = [f for f in dataset.keys() if f in coords]
         axL.scatter([coords[f][0] for f in ds], [coords[f][1] for f in ds],
-                    c='#CFCFCF', s=18, alpha=0.75, edgecolors='none', label='Dataset (≤ Gen 10)', zorder=2)
+                    c='#CFCFCF', s=30, alpha=0.75, edgecolors='none', label='Dataset (≤ Gen 10)', zorder=2)
 
     # SIMPLE points + numbers
     simple_xy = []
     for idx, k in enumerate(ordered_keys, start=1):
         base = k.split('_')[0]; x, y = coords[base]
         simple_xy.append([x,y])
-        axL.scatter([x],[y], c=COLOR_RED, s=62, alpha=0.92, edgecolors='black', linewidths=0.6, zorder=3)
+        axL.scatter([x],[y], c=COLOR_RED, s=64, alpha=0.92, edgecolors='black', linewidths=0.6, zorder=3)
         axL.text(x, y, str(idx), ha='center', va='center', fontsize=12.2,
                  bbox=dict(boxstyle='circle,pad=0.22', fc='white', ec=COLOR_RED, lw=1.0, alpha=0.95),
                  color='black', zorder=4)
     simple_xy = np.asarray(simple_xy)
 
-    axL.set_title(f'Composition map ({tname}, var≈{100*var:.1f}%)', fontsize=14, fontweight='bold')
-    axL.set_xlabel('PC 1', fontsize=14, fontweight='bold')
-    axL.set_ylabel('PC 2', fontsize=14, fontweight='bold')
-    axL.tick_params(labelsize=12)
+    axL.set_title(f'Composition map ({tname}, var≈{100*var:.1f}%)', fontweight='bold')
+    axL.set_xlabel('PC 1', fontweight='bold')
+    axL.set_ylabel('PC 2', fontweight='bold')
+    axL.tick_params()
     axL.grid(alpha=0.25, linestyle=':', zorder=1)
-    axL.legend(frameon=False, loc='upper center', ncol=2, fontsize=12)
+    axL.legend(frameon=False, loc='upper center', ncol=2)
     axL.set_aspect('equal', adjustable='box')
 
     # ---- Zoom control ----
@@ -558,7 +616,7 @@ def plot_map_and_neb(summary_csv: str,
     dataset_list = [f for f in dataset.keys() if f in coords] if dataset else []
     add_inset_zoom(axL, ordered_keys, coords, 
                    indices_to_zoom=[1, 2, 4, 5, 6],
-                   inset_bounds=(0.48, 0.02, 0.50, 0.50),
+                   inset_bounds=(0.42, -0.05, 0.65, 0.65),
                    zoom_padding=0.5,
                    dataset_formulas=dataset_list)
 
@@ -572,19 +630,19 @@ def plot_map_and_neb(summary_csv: str,
         ax.plot(x, vasp, '--', c='k', lw=1.4, label='VASP')
         ax.plot(x, g0, '-', c=COLOR_ORANGE, lw=1.5, label='MLIP Gen0')
         ax.plot(x, g10, '-', c=COLOR_BLUE, lw=1.5, label='MLIP Gen10')
-        ax.set_title(f"#{r+1}  {pretty_comp_label(comp_key)}", loc='left', fontsize=13, fontweight='bold')
-        ax.set_ylabel('ΔE (eV)', fontsize=14, fontweight='bold')
-        ax.tick_params(labelsize=12)
+        ax.set_title(f"#{r+1}  {pretty_comp_label(comp_key)}", loc='left', fontweight='bold')
+        ax.set_ylabel('ΔE (eV)', fontweight='bold')
+        ax.tick_params()
         # Format y-axis to 2 decimal places
         ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         if r == n-1: 
-            ax.set_xlabel('Image', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Image', fontweight='bold')
         else: 
             ax.tick_params(labelbottom=False)
         if r == 0:
             # Place legend horizontally above the first plot with more clearance
             ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.18), ncol=3, 
-                     frameon=False, fontsize=13)
+                     frameon=False)
         vasp_bars.append(neb[comp_key]['bar_vasp'])
         gen0_bars.append(neb[comp_key]['bar_gen0'])
         gen10_bars.append(neb[comp_key]['bar_gen10'])
@@ -614,7 +672,7 @@ def plot_map_only(summary_csv: str,
                   smart_min_span: float = 3.0,
                   smart_clamp_to_poly: bool = False,
                   overlay_polytope: bool = True):
-    keys, neb = load_summary(summary_csv)
+    keys, neb = load_summary_any(summary_csv)
     base_formulas = [k.split('_')[0] for k in keys]
     dataset = get_dataset_compositions(max_generation=max_generation_bg)
     try:
@@ -641,7 +699,7 @@ def plot_map_only(summary_csv: str,
             cx = Z_poly[:, 0].mean()
             cy_top = Z_poly[:, 1].max()
             axL.text(cx, cy_top + 0.8, 'Feasible region', ha='center', va='bottom',
-                    fontsize=13, color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2)
+                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2)
     else:
         if zoom == 'manifold':
             Z_poly = pca.transform(preproc_fn(sample_feasible_region(4000)))
@@ -649,24 +707,24 @@ def plot_map_only(summary_csv: str,
     if dataset:
         ds = [f for f in dataset.keys() if f in coords]
         axL.scatter([coords[f][0] for f in ds], [coords[f][1] for f in ds],
-                    c='#CFCFCF', s=18, alpha=0.65, edgecolors='none', label='Dataset (≤ Gen 10)', zorder=2)
+                    c='#CFCFCF', s=48, alpha=0.65, edgecolors='none', label='Dataset (≤ Gen 10)', zorder=2)
 
     simple_xy = []
     for idx, k in enumerate(ordered_keys, start=1):
         base = k.split('_')[0]; x, y = coords[base]
         simple_xy.append([x,y])
-        axL.scatter([x],[y], c=COLOR_RED, s=62, alpha=0.92, edgecolors='black', linewidths=0.6, zorder=3)
+        axL.scatter([x],[y], c=COLOR_RED, s=64, alpha=0.92, edgecolors='black', linewidths=0.6, zorder=3)
         axL.text(x, y, str(idx), ha='center', va='center', fontsize=12.2,
                  bbox=dict(boxstyle='circle,pad=0.22', fc='white', ec=COLOR_RED, lw=1.0, alpha=0.95),
                  color='black', zorder=4)
     simple_xy = np.asarray(simple_xy)
 
-    axL.set_title(f'Composition map ({tname}, var≈{100*var:.1f}%)', fontsize=14, fontweight='bold')
-    axL.set_xlabel('PC 1', fontsize=14, fontweight='bold')
-    axL.set_ylabel('PC 2', fontsize=14, fontweight='bold')
-    axL.tick_params(labelsize=12)
+    axL.set_title(f'Composition map ({tname}, var≈{100*var:.1f}%)', fontweight='bold')
+    axL.set_xlabel('PC 1', fontweight='bold')
+    axL.set_ylabel('PC 2', fontweight='bold')
+    axL.tick_params()
     axL.grid(alpha=0.25, linestyle=':', zorder=1)
-    axL.legend(frameon=False, loc='upper center', ncol=2, fontsize=12)
+    axL.legend(frameon=False, loc='upper center', ncol=2)
     axL.set_aspect('equal', adjustable='box')
 
     if zoom == 'smart' and len(simple_xy):
@@ -716,7 +774,7 @@ def plot_neb_only(summary_csv: str,
                   neb_legend_pad: float = 1.0,
                   max_generation_bg: int = 10):
     from matplotlib.ticker import FormatStrFormatter
-    keys, neb = load_summary(summary_csv)
+    keys, neb = load_summary_any(summary_csv)
     base_formulas = [k.split('_')[0] for k in keys]
     dataset = get_dataset_compositions(max_generation=max_generation_bg)
     try:
@@ -739,21 +797,21 @@ def plot_neb_only(summary_csv: str,
         ax.plot(x, vasp, '--', c='k', lw=1.4, label='VASP')
         ax.plot(x, g0, '-', c=COLOR_ORANGE, lw=1.5, label='MLIP Gen0')
         ax.plot(x, g10, '-', c=COLOR_BLUE, lw=1.5, label='MLIP Gen10')
-        ax.set_title(f"#{r+1}  {pretty_comp_label(comp_key)}", loc='left', fontsize=13, fontweight='bold')
-        ax.set_ylabel('ΔE (eV)', fontsize=14, fontweight='bold')
-        ax.tick_params(labelsize=12)
+        ax.set_title(f"#{r+1}  {pretty_comp_label(comp_key)}", loc='left', fontweight='bold')
+        ax.set_ylabel('ΔE (eV)', fontweight='bold')
+        ax.tick_params()
         # Format y-axis to 2 decimal places
         ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         if r == n-1:
-            ax.set_xlabel('Image', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Image', fontweight='bold')
         else:
             ax.tick_params(labelbottom=False)
         if r == 0:
             if neb_legend_outside:
-                ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0, frameon=False, fontsize=13)
+                ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0, frameon=False)
             else:
                 # Horizontal legend above with more clearance
-                ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.08), ncol=3, frameon=False, fontsize=13)
+                ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.08), ncol=3, frameon=False)
 
     fig.tight_layout()
     if save_path:
@@ -768,7 +826,7 @@ def plot_parity_only(summary_csv: str,
                      right_col_ratio: float = 0.85,
                      parity_only_height: float = 4.5,
                      max_generation_bg: int = 10):
-    keys, neb = load_summary(summary_csv)
+    keys, neb = load_summary_any(summary_csv)
     base_formulas = [k.split('_')[0] for k in keys]
     dataset = get_dataset_compositions(max_generation=max_generation_bg)
     try:
@@ -802,7 +860,7 @@ def plot_parity_only(summary_csv: str,
 # -------------------------------- CLI --------------------------------
 def main():
     p = argparse.ArgumentParser(description="Map + NEB trajectories (Gen0 vs Gen10), manifold zoom, parity spans both columns")
-    p.add_argument("--summary", type=str, required=True, help="Path to updated summary_barriers.csv")
+    p.add_argument("--summary", type=str, required=False, default=None, help="Path to summary (.json or .csv). Defaults to JSON if present.")
     p.add_argument("--transform", type=str, default="ilr", choices=["ilr","clr","raw"], help="Transform for the map")
     p.add_argument("--include_parity", action="store_true", help="Add parity row spanning both columns (only for panel=combined)")
     p.add_argument("--novelty_dim_method", type=str, default="PCA", help="Dimensionality reduction used by novelty analyzer")
@@ -825,8 +883,10 @@ def main():
     p.add_argument("--no_overlay_polytope", dest="overlay_polytope", action="store_false", help="Disable polytope overlay on map panels")
     args = p.parse_args()
 
+    summary_path = args.summary or resolve_default_summary()
+
     if args.panel == 'combined':
-        plot_map_and_neb(summary_csv=args.summary,
+        plot_map_and_neb(summary_csv=summary_path,
                          transform=args.transform,
                          include_parity=args.include_parity,
                          novelty_dim_method=args.novelty_dim_method,
@@ -844,7 +904,7 @@ def main():
                          smart_min_span=args.smart_min_span,
                          smart_clamp_to_poly=args.smart_clamp_to_poly)
     elif args.panel == 'map':
-        plot_map_only(summary_csv=args.summary,
+        plot_map_only(summary_csv=summary_path,
                       transform=args.transform,
                       novelty_dim_method=args.novelty_dim_method,
                       save_path=args.save,
@@ -857,7 +917,7 @@ def main():
                       smart_min_span=args.smart_min_span,
                       smart_clamp_to_poly=args.smart_clamp_to_poly)
     elif args.panel == 'neb':
-        plot_neb_only(summary_csv=args.summary,
+        plot_neb_only(summary_csv=summary_path,
                       save_path=args.save,
                       novelty_dim_method=args.novelty_dim_method,
                       row_height=args.row_height,
@@ -866,7 +926,7 @@ def main():
                       neb_legend_pad=args.neb_legend_pad,
                       max_generation_bg=args.max_generation_bg)
     elif args.panel == 'parity':
-        plot_parity_only(summary_csv=args.summary,
+        plot_parity_only(summary_csv=summary_path,
                          save_path=args.save,
                          novelty_dim_method=args.novelty_dim_method,
                          row_height=args.row_height,

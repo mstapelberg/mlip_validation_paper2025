@@ -347,6 +347,30 @@ def main(main_data='./simple_data'):
     barriers_df = pd.DataFrame(barrier_rows, columns=['composition','label','barrier_vasp','barrier_mlip','neb_vasp','neb_mlip'])
     barriers_df.to_csv('summary_barriers.csv', index=False)
 
+    # Also emit a compact JSON for sharing without raw trajectories
+    # Merge gen0/gen10 per composition with arrays for plotting
+    per_comp = {}
+    for _, r in barriers_df.iterrows():
+        key = r['composition']
+        if key not in per_comp:
+            per_comp[key] = {
+                'composition': key,
+                'vasp': json.loads(r['neb_vasp']) if isinstance(r['neb_vasp'], str) else r['neb_vasp'],
+                'bar_vasp': float(r['barrier_vasp'])
+            }
+        lab = str(r['label']).strip().lower()
+        mlip_neb = json.loads(r['neb_mlip']) if isinstance(r['neb_mlip'], str) else r['neb_mlip']
+        if lab == 'gen0':
+            per_comp[key]['mlip_gen0'] = mlip_neb
+            per_comp[key]['bar_gen0'] = float(r['barrier_mlip'])
+        elif lab in ('gen10','gen_10','gen-10'):
+            per_comp[key]['mlip_gen10'] = mlip_neb
+            per_comp[key]['bar_gen10'] = float(r['barrier_mlip'])
+
+    minimal_records = list(per_comp.values())
+    with open('summary_barriers.min.json', 'w') as f:
+        json.dump({ 'records': minimal_records }, f)
+
     if df.empty:
         print("DEBUG: No valid records to plot; skipping figure generation.")
         return
