@@ -21,6 +21,18 @@ With parity plots (requires NequIP models and test XYZ):
     --parity 0 7 10 \
     --models /path/to/models_root \
     --xyz /path/to/test.xyz
+
+Replotting from cached data (no recomputation):
+  python per_generation_analysis.py \
+    --outdir ../../data/per_gen_out/ \
+    --replot \
+    --parity 0 10
+
+  # Or to plot different generations:
+  python per_generation_analysis.py \
+    --outdir ../../data/per_gen_out/ \
+    --replot \
+    --parity 0 7 10
 """
 
 import argparse
@@ -760,7 +772,10 @@ def make_rmse_parity_panel(rmse_png: Path, parity_png: Path, savepath: Optional[
 
 
 def save_parity_data_json(parity_data: Dict[str, object], path: Path):
-    """Save parity data to JSON with numpy arrays converted to lists."""
+    """Save parity data to JSON with numpy arrays converted to lists.
+    
+    Automatically uses gzip compression if path ends with .gz
+    """
     json_data = {}
     for prop, data_dict in parity_data.items():
         json_data[prop] = {}
@@ -772,14 +787,29 @@ def save_parity_data_json(parity_data: Dict[str, object], path: Path):
             json_data[prop]["y_pred"] = {
                 str(gen): arr.tolist() for gen, arr in data_dict["y_pred"].items()
             }
-    with open(path, 'w') as f:
-        json.dump(json_data, f, indent=2)
+    
+    # Use gzip if path ends with .gz
+    if str(path).endswith('.gz'):
+        with gzip.open(path, 'wt', encoding='utf-8') as f:
+            json.dump(json_data, f, indent=2)
+    else:
+        with open(path, 'w') as f:
+            json.dump(json_data, f, indent=2)
 
 
 def load_parity_data_json(path: Path) -> Dict[str, object]:
-    """Load parity data from JSON and convert lists back to numpy arrays."""
-    with open(path, 'r') as f:
-        json_data = json.load(f)
+    """Load parity data from JSON and convert lists back to numpy arrays.
+    
+    Automatically uses gzip decompression if path ends with .gz
+    """
+    # Use gzip if path ends with .gz
+    if str(path).endswith('.gz'):
+        with gzip.open(path, 'rt', encoding='utf-8') as f:
+            json_data = json.load(f)
+    else:
+        with open(path, 'r') as f:
+            json_data = json.load(f)
+    
     parity_data = {}
     for prop, data_dict in json_data.items():
         parity_data[prop] = {}
@@ -848,6 +878,7 @@ def aggregate(df: pd.DataFrame, gen_min: int, gen_max: int, seeds: Iterable[int]
 
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(description="Per-generation analysis and plotting for W&B exports.")
+    script_dir = Path(__file__).resolve().parent
     base_dir = Path(__file__).resolve().parents[1]
     default_outdir = base_dir / "data" / "per_generation_wandb_data"
     default_csv = find_latest_wandb_csv(default_outdir)
@@ -923,9 +954,9 @@ def main(argv: Optional[list] = None) -> int:
     if args.parity is not None and len(args.parity) > 0:
         gens = [int(g) for g in args.parity]
         
-        # Set default parity cache path
+        # Set default parity cache path in script directory
         if args.parity_cache is None:
-            args.parity_cache = args.outdir / "parity_data.json"
+            args.parity_cache = script_dir / "parity_data.json.gz"
         
         # Try to load from cache first (if replotting or cache exists)
         parity_data = None
@@ -933,6 +964,13 @@ def main(argv: Optional[list] = None) -> int:
             logging.info("Loading cached parity data from %s", args.parity_cache)
             try:
                 parity_data = load_parity_data_json(args.parity_cache)
+                # Check if requested generations exist in cache
+                for prop in parity_data.values():
+                    cache_gens = set(prop.get("y_pred", {}).keys())
+                    missing = set(gens) - cache_gens
+                    if missing:
+                        logging.warning("Cache is missing generations %s; only has %s", sorted(missing), sorted(cache_gens))
+                    break  # Only check first property
             except Exception as e:
                 logging.warning("Failed to load parity cache, will recompute: %s", e)
                 parity_data = None
