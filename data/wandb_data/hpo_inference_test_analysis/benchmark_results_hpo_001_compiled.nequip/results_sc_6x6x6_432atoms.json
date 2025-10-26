@@ -1,0 +1,22 @@
+{
+    "potential_file": "/home/myless/Packages/Triton-Allegro-Package/throughput-benchmark/compiled_models/hpo_001_compiled.nequip.pt2",
+    "supercell": "6x6x6",
+    "num_atoms": 432,
+    "timestep_fs": 0.001,
+    "n_warmup_steps": 100,
+    "n_steps": 1000,
+    "temperature_k": 300.0,
+    "random_seed": 4928459,
+    "target_gpu_id": 0,
+    "peak_gpu_memory_mib": 3486,
+    "wall_time_s": 3.650113344192505,
+    "loop_time_s": null,
+    "timesteps_per_s_log": 439.772,
+    "katom_steps_per_s_log": 189.981,
+    "time_per_step_ms_log": null,
+    "timesteps_per_s_calculated": null,
+    "status": "SUCCESS_LOG_PARSED",
+    "log_file": "/home/myless/Packages/Triton-Allegro-Package/throughput-benchmark/lammps_benchmark_logs/log_sc_6x6x6_432atoms.txt",
+    "lammps_stdout": null,
+    "lammps_stderr": null
+}
