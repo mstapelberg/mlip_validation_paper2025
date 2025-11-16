@@ -1,0 +1,15 @@
+# Custom Models Config
+# Run with custom-allegro/custom nequip fork environment
+# Format: NAME:PATH
+# These models were trained with RMCE and RMQE losses (require custom nequip fork)
+
+# RMCE Loss (3 seeds) - Root Mean Cubic Error
+RMCE_model0:../../data/potentials/allegro/loss_function_testing/packaged_models/custom-allegro/job_gen_7_2025-05-30_RMCE_model_0.nequip.zip
+RMCE_model1:../../data/potentials/allegro/loss_function_testing/packaged_models/custom-allegro/job_gen_7_2025-05-30_RMCE_model_1.nequip.zip
+RMCE_model2:../../data/potentials/allegro/loss_function_testing/packaged_models/custom-allegro/job_gen_7_2025-05-30_RMCE_model_2.nequip.zip
+
+# RMQE Loss (3 seeds) - Root Mean Quartic Error
+RMQE_model0:../../data/potentials/allegro/loss_function_testing/packaged_models/custom-allegro/job_gen_7_2025-05-30_RMQE_model_0.nequip.zip
+RMQE_model1:../../data/potentials/allegro/loss_function_testing/packaged_models/custom-allegro/job_gen_7_2025-05-30_RMQE_model_1.nequip.zip
+RMQE_model2:../../data/potentials/allegro/loss_function_testing/packaged_models/custom-allegro/job_gen_7_2025-05-30_RMQE_model_2.nequip.zip
+

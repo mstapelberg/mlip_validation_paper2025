@@ -1,0 +1,16 @@
+name: custom_allegro_env
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - git
+  - pandas
+  - matplotlib
+  - tqdm
+  # Note: PyTorch and other packages are installed via setup_custom_allegro_environment.sh
+  # This ensures proper CUDA/CPU selection
+

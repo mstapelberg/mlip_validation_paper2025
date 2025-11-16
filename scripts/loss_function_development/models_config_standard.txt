@@ -1,0 +1,25 @@
+# Standard Models Config
+# Run with forge-allegro/standard nequip environment
+# Format: NAME:PATH
+# These models were trained with MSE, RMSE, StratHuber, and TailHuber losses
+
+# MSE Loss (3 seeds)
+MSE_model0:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_MSE_model_0.nequip.zip
+MSE_model1:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_MSE_model_1.nequip.zip
+MSE_model2:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_MSE_model_2.nequip.zip
+
+# RMSE Loss (3 seeds)
+RMSE_model0:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_RMSE_model_0.nequip.zip
+RMSE_model1:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_RMSE_model_1.nequip.zip
+RMSE_model2:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_RMSE_model_2.nequip.zip
+
+# StratHuber Loss (3 seeds)
+StratHuber_model0:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_StratHuber_model_0.nequip.zip
+StratHuber_model1:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_StratHuber_model_1.nequip.zip
+StratHuber_model2:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_StratHuber_model_2.nequip.zip
+
+# TailHuber Loss (3 seeds)
+TailHuber_model0:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_TailHuber_model_0.nequip.zip
+TailHuber_model1:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_TailHuber_model_1.nequip.zip
+TailHuber_model2:../../data/potentials/allegro/loss_function_testing/packaged_models/forge-allegro/job_gen_7_2025-05-30_TailHuber_model_2.nequip.zip
+
