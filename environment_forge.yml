@@ -1,0 +1,21 @@
+name: forge_allegro_paper_env
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - git
+  - tqdm
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - umap-learn
+  - adjusttext
+  - hdbscan
+  - seaborn
+  # Note: PyTorch and other packages are installed via setup_forge_environment.sh
+  # This ensures proper CUDA/CPU selection
+

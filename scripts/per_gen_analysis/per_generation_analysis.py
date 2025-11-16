@@ -150,12 +150,12 @@ def make_publication_plot(agg_df: pd.DataFrame, show: bool = False, savepath: Op
 
 
 def make_rmse_plot(agg_rmse_df: pd.DataFrame, show: bool = False, savepath: Optional[Path] = None):
-    """Plot RMSE with dual y-axes: forces on left, energy+stress on right.
+    """Plot RMSE with dual y-axes: forces on left, energy+stress on right (log).
 
-    Legend includes units:
-      - energy_rmse: eV/atom
-      - forces_rmse: eV/Angstrom
-      - stress_rmse: eV/Angstrom^3
+    Legend entries:
+      - Force RMSE (eV/Å)
+      - Energy RMSE (eV/atom)
+      - Stress RMSE (eV/Å³)
     """
     if "generation" not in agg_rmse_df.columns or len(agg_rmse_df) == 0:
         logging.info("Skipping RMSE plot; 'generation' missing or no data.")
@@ -167,91 +167,176 @@ def make_rmse_plot(agg_rmse_df: pd.DataFrame, show: bool = False, savepath: Opti
         logging.info("Skipping RMSE plot; no generations to plot.")
         return
 
-    fig, ax_left = plt.subplots(figsize=(12, 4), dpi=300)
+    # Font sizes
+    label_fs = 10
+    tick_fs = 9
+    legend_fs = 9
+
+    # Publication palette (matches rcParams)
+    force_color = "#2A33C3"   # blue
+    energy_color = "#A35D00"  # brown/orange
+    stress_color = "#6E8B00"  # green
+
+    # Wider figure + reserved right margin for legend
+    # To adjust RMSE plot width in the panel: change the first value in figsize (currently 8.5)
+    fig, ax_left = plt.subplots(figsize=(9.5, 3.5), dpi=300)
+    # Reserve space on the right for the legend
+    fig.subplots_adjust(left=0.10, right=0.98, bottom=0.15, top=0.95)
     ax_right = ax_left.twinx()
     ax_right.set_yscale("log")
 
-    handles = []
-    labels = []
+    handles: list = []
+    labels: list = []
 
-    force_color = "C0"
-    energy_color = "C1"
-    stress_color = "C2"
-
-    def plot_band(ax_obj, key: str, marker: str, unit: str, color: str, log_clip: bool):
+    def plot_band(
+        ax_obj,
+        key: str,
+        marker: str,
+        legend_label: str,
+        color: str,
+        log_clip: bool,
+    ):
         mean_col = f"{key}_mean"
         std_col = f"{key}_std"
-        if mean_col in agg_rmse_df.columns and std_col in agg_rmse_df.columns:
-            y = agg_rmse_df[mean_col].to_numpy()
-            ystd = agg_rmse_df[std_col].to_numpy()
-            if log_clip:
-                positive = y[y > 0]
-                eps = float(np.nanmin(positive)) * 1e-3 if positive.size > 0 else 1e-12
-                y_plot = np.clip(y, eps, None)
-                y_low = np.clip(y - ystd, eps, None)
-                y_high = np.clip(y + ystd, eps * 1.001, None)
-            else:
-                y_plot = y
-                y_low = y - ystd
-                y_high = y + ystd
-            [line] = ax_obj.plot(x, y_plot, marker=marker, linewidth=1.2, color=color)
-            ax_obj.fill_between(x, y_low, y_high, alpha=0.2, color=color)
-            handles.append(line)
-            labels.append(f"{key.replace('_', ' ')} ({unit})")
+        if mean_col not in agg_rmse_df.columns or std_col not in agg_rmse_df.columns:
+            return
 
-            try:
-                finite_mask = np.isfinite(y_plot)
-                if np.any(finite_mask):
-                    x_vals = x[finite_mask]
-                    y_vals = y_plot[finite_mask]
-                    x_range = float(np.max(x_vals) - np.min(x_vals)) if len(x_vals) > 1 else 1.0
-                    if ax_obj is ax_left:
-                        start_x = x_vals[-1] - 0.05 * x_range
-                        end_x = x_vals[-1] - 0.25 * x_range
-                    else:
-                        start_x = x_vals[-1] - 0.25 * x_range
-                        end_x = x_vals[-1] - 0.05 * x_range
-                    start_y = y_vals[-1]
-                    end_y = y_vals[-1]
-                    ax_obj.annotate(
-                        "",
-                        xy=(end_x, end_y),
-                        xytext=(start_x, start_y),
-                        arrowprops=dict(arrowstyle="-|>", color=color, lw=1.0),
-                    )
-            except Exception as e:
-                logging.debug("Arrow annotation skipped: %s", e)
+        y = agg_rmse_df[mean_col].to_numpy()
+        ystd = agg_rmse_df[std_col].to_numpy()
+
+        if log_clip:
+            positive = y[y > 0]
+            if positive.size == 0:
+                return
+            eps = float(np.nanmin(positive)) * 1e-3
+            y_plot = np.clip(y, eps, None)
+            y_low = np.clip(y - ystd, eps, None)
+            y_high = np.clip(y + ystd, eps * 1.001, None)
+        else:
+            y_plot = y
+            y_low = y - ystd
+            y_high = y + ystd
+
+        [line] = ax_obj.plot(x, y_plot, marker=marker, linewidth=1.4, color=color)
+        ax_obj.fill_between(x, y_low, y_high, alpha=0.20, color=color, linewidth=0.0)
+        handles.append(line)
+        labels.append(legend_label)
 
     # Left axis: forces
-    plot_band(ax_left, "forces_rmse", "o", "eV/Angstrom", force_color, log_clip=False)
-    # Right axis: energy and stress (log-scale)
-    plot_band(ax_right, "energy_rmse", "D", "eV/atom", energy_color, log_clip=True)
-    plot_band(ax_right, "stress_rmse", "s", "eV/Angstrom^3", stress_color, log_clip=True)
+    plot_band(
+        ax_left,
+        key="forces_rmse",
+        marker="o",
+        legend_label="Force RMSE (eV/Å)",
+        color=force_color,
+        log_clip=False,
+    )
 
-    ax_left.set_xlabel("Generation (X)", weight='bold')
-    ax_left.set_ylabel("RMSE (forces)", weight='bold')
-    ax_right.set_ylabel("RMSE (energy, stress) [log]", weight='bold')
-    ax_left.set_title("Test RMSE by generation (mean ± std over seeds)", weight='bold')
+    # Right axis: energy + stress
+    plot_band(
+        ax_right,
+        key="energy_rmse",
+        marker="D",
+        legend_label="Energy RMSE (eV/atom)",
+        color=energy_color,
+        log_clip=True,
+    )
+    plot_band(
+        ax_right,
+        key="stress_rmse",
+        marker="s",
+        legend_label="Stress RMSE (eV/Å³)",
+        color=stress_color,
+        log_clip=True,
+    )
+
+    # Axis labels / ticks
+    ax_left.set_xlabel("Generation (X)", weight="bold", fontsize=label_fs)
+    ax_left.set_ylabel("F RMSE (eV/Å)", weight="bold", fontsize=label_fs)
+    ax_right.set_ylabel(
+        "(E, $\sigma$) RMSE [log] (eV/atom, eV/Å³)",
+        weight="bold",
+        fontsize=label_fs,
+    )
+
     ax_left.set_xticks(x)
+    ax_left.tick_params(axis="both", labelsize=tick_fs)
+    ax_right.tick_params(axis="y", labelsize=tick_fs)
+
     ax_left.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
 
-    # Combine legend entries from both axes
-    leg = fig.legend(
-        handles, labels,
-        loc="upper right",
-        frameon=True,
-        bbox_to_anchor=(0.90, 0.90),
-        bbox_transform=fig.transFigure
+    # Panel label "(a)"
+    ax_left.text(
+        0.02,
+        0.98,
+        "(a)",
+        transform=ax_left.transAxes,
+        fontsize=label_fs,
+        weight="bold",
+        color="black",
+        va="top",
+        ha="left",
     )
-    leg.get_frame().set_linewidth(0.5)
 
-    fig.tight_layout()
+    # Legend inside plot area, upper right corner
+    if handles:
+        leg = ax_left.legend(
+            handles,
+            labels,
+            loc="upper right",
+            frameon=True,
+            bbox_to_anchor=(0.98, 0.98),
+            framealpha=0.95,
+            fontsize=legend_fs,
+        )
+        leg.get_frame().set_linewidth(0.5)
+
+    # Axis arrows: always visible (axes-fraction coordinates)
+    arrow_kw = dict(arrowstyle="-|>", lw=2.4)
+
+    # Forces arrow: blue, pointing left toward left y-axis
+    ax_left.annotate(
+        "",
+        xy=(0.04, 0.40),    # head near left axis
+        xytext=(0.22, 0.40),
+        xycoords="axes fraction",
+        textcoords="axes fraction",
+        arrowprops=dict(**arrow_kw, color=force_color),
+    )
+
+    # Energy arrow: brown/orange, pointing right toward right y-axis
+    ax_right.annotate(
+        "",
+        xy=(0.96, 0.72),
+        xytext=(0.78, 0.72),
+        xycoords="axes fraction",
+        textcoords="axes fraction",
+        arrowprops=dict(**arrow_kw, color=energy_color),
+    )
+
+    # Stress arrow: green, pointing right toward right y-axis
+    ax_right.annotate(
+        "",
+        xy=(0.96, 0.55),
+        xytext=(0.78, 0.55),
+        xycoords="axes fraction",
+        textcoords="axes fraction",
+        arrowprops=dict(**arrow_kw, color=stress_color),
+    )
+
+    # Respect reserved right margin
+    fig.tight_layout(rect=[0.02, 0.02, 0.98, 0.98])
+
     if savepath is not None:
-        fig.savefig(savepath, bbox_inches="tight", pad_inches=0.02)
+        # Reduced padding to minimize vertical space in panel
+        # CHANGE THIS TO ADJUST VERTICAL SPACE IN MAKE_RMSE_PARITY_PANEL 
+        fig.savefig(savepath, bbox_inches="tight", pad_inches=0.01)
     if show:
         plt.show()
     else:
         plt.close(fig)
+
+
 
 
 def _is_packaged_model_dir(path: Path) -> bool:
@@ -619,16 +704,19 @@ def make_parity_plot(
     savepath: Optional[Path] = None,
     show: bool = False,
 ):
-    """Create parity plots (energy and/or forces) per generation.
+    """Create parity plots (energy and/or forces and/or stress) per generation.
 
-    Each generation uses the global color cycle order (C0, C1, C2, ...), and
-    alpha increases with generation index so earlier generations appear lighter.
+    Legends:
+      - One legend per subplot.
+      - Horizontally centered over each subplot.
+      - All legends share a band above the axes, which becomes the
+        "between RMSE and parity" region in the final panel.
     """
     if not parity_data:
         logging.info("Skipping parity plot; no data.")
         return
 
-    # We want a row of three (energy/atom, forces, stress) when available
+    # Decide which properties we actually have
     props = []
     if "energy" in parity_data and len(parity_data["energy"]["y_pred"]) > 0:
         props.append("energy")
@@ -641,19 +729,31 @@ def make_parity_plot(
         return
 
     matplotlib.use("Agg", force=False)
-    # Force layout to up to 3 columns but only for available props
+
     ncols = len(props)
-    fig, axes = plt.subplots(1, ncols, figsize=(6.0 * ncols, 6.0), dpi=300)
+
+    PARITY_SUBPLOT_WIDTH = 3.5
+
+    plot_area_width = PARITY_SUBPLOT_WIDTH * (ncols + (ncols - 1) * 0.50)
+
+    figure_width = plot_area_width / 0.88 
+    # Wider figure to avoid squishing; extra vertical space at the top for legends
+    fig, axes = plt.subplots(1, ncols, figsize=(figure_width, 5.5), dpi=300)
     if ncols == 1:
         axes = [axes]
-    # Reduce inter-subplot spacing
-    fig.subplots_adjust(wspace=0.05)
 
-    # Font sizes to better match top panel
-    label_fs = 14
-    tick_fs = 12
+    # Leave a band at the top for legends; give more horizontal space between subplots
+    fig.subplots_adjust(
+        left=0.10, right=0.98,
+        bottom=0.14, top=0.78,
+        wspace=0.35,
+    )
+
+    label_fs = 16
+    tick_fs = 12 
     legend_fs = 12
 
+    part_labels = ['b', 'c', 'd']  # (b), (c), (d)
     gens_sorted = sorted(generations)
     n_g = len(gens_sorted)
 
@@ -662,24 +762,28 @@ def make_parity_plot(
             return 0.9
         return float(0.35 + (0.6 * (i / (n - 1))))
 
-    for ax, prop in zip(axes, props):
+    # Precompute global x positions for legends (figure coordinates)
+    for idx, (ax, prop) in enumerate(zip(axes, props)):
         y_true = parity_data[prop]["y_true"]
         y_pred_by_gen: Dict[int, np.ndarray] = parity_data[prop]["y_pred"]
         if len(y_pred_by_gen) == 0:
             continue
+
         # Determine diagonal limits
         y_min = float(np.nanmin(y_true)) if np.size(y_true) > 0 else 0.0
         y_max = float(np.nanmax(y_true)) if np.size(y_true) > 0 else 1.0
+
         for i, gen in enumerate(gens_sorted):
             preds = y_pred_by_gen.get(gen)
             if preds is None or np.size(preds) == 0:
                 continue
-            # If lengths mismatch (e.g., multiple seeds), tile y_true to match preds length
+
             if preds.shape[0] != y_true.shape[0]:
                 reps = int(np.ceil(preds.shape[0] / max(1, y_true.shape[0])))
                 x_vals = np.tile(y_true, reps)[: preds.shape[0]]
             else:
                 x_vals = y_true
+
             color = f"C{(i % 3)}"
             # Metrics
             try:
@@ -691,13 +795,23 @@ def make_parity_plot(
                 metrics_txt = f"RMSE {rmse:.3g}, R² {r2:.3f}" if np.isfinite(r2) else f"RMSE {rmse:.3g}"
             except Exception:
                 metrics_txt = None
+
             label = f"gen{gen}"
             if metrics_txt:
                 label = f"{label} — {metrics_txt}"
-            ax.scatter(x_vals, preds, s=10, alpha=alpha_for_index(i, n_g), color=color, label=label)
+
+            ax.scatter(
+                x_vals, preds,
+                s=20,  # Increased from 10 for better visibility
+                alpha=alpha_for_index(i, n_g),
+                color=color,
+                label=label,
+            )
+
             # Update limits
             y_min = min(y_min, float(np.nanmin(x_vals)), float(np.nanmin(preds)))
             y_max = max(y_max, float(np.nanmax(x_vals)), float(np.nanmax(preds)))
+
         # Diagonal reference
         pad = 0.02 * (y_max - y_min if y_max > y_min else 1.0)
         lo, hi = y_min - pad, y_max + pad
@@ -707,33 +821,60 @@ def make_parity_plot(
         ax.set_aspect("equal", adjustable="box")
         ax.grid(True, which="both", linestyle="--", linewidth=0.6, alpha=0.6)
         ax.tick_params(axis="both", which="both", labelsize=tick_fs)
-        if prop == "energy":
-            ax.set_xlabel("Reference energy/atom (eV/atom)", fontsize=label_fs, weight='bold')
-            ax.set_ylabel("Predicted energy/atom (eV/atom)", fontsize=label_fs, weight='bold')
-        elif prop == "forces":
-            ax.set_xlabel("Reference forces (eV/Å)", fontsize=label_fs, weight='bold')
-            ax.set_ylabel("Predicted forces (eV/Å)", fontsize=label_fs, weight='bold')
-        elif prop == "stress":
-            ax.set_xlabel("Reference stress components (eV/Å³)", fontsize=label_fs, weight='bold')
-            ax.set_ylabel("Predicted stress components (eV/Å³)", fontsize=label_fs, weight='bold')
-        ax.legend(frameon=True, markerscale=3, fontsize=legend_fs, loc='upper left')
 
-    fig.tight_layout()
+        # Axis labels per property
+        if prop == "energy":
+            ax.set_xlabel("E Ref (eV/atom)", fontsize=label_fs, weight='bold')
+            ax.set_ylabel("E Pred (eV/atom)", fontsize=label_fs, weight='bold')
+        elif prop == "forces":
+            ax.set_xlabel("F Ref (eV/Å)", fontsize=label_fs, weight='bold')
+            ax.set_ylabel("F Pred (eV/Å)", fontsize=label_fs, weight='bold')
+        elif prop == "stress":
+            ax.set_xlabel(r"$\boldsymbol{\sigma}$ Ref (eV/Å³)", fontsize=label_fs, weight='bold')
+            ax.set_ylabel(r"$\boldsymbol{\sigma}$ Pred (eV/Å³)", fontsize=label_fs, weight='bold')
+
+        # Part label in top-left of each subplot
+        part_label = f"({part_labels[idx]})"
+        ax.text(
+            0.02, 0.98, part_label,
+            transform=ax.transAxes,
+            fontsize=label_fs,
+            weight='bold',
+            color='black',
+            va='top',
+            ha='left',
+        )
+        
+
+        # Legend: centered horizontally over each subplot,
+        # in the band between top of axes and top of figure.
+        bbox = ax.get_position()
+        subplot_center_x = (bbox.x0 + bbox.x1) / 2.0
+
+        leg = ax.legend(
+            frameon=True,
+            markerscale=3,
+            fontsize=legend_fs,
+            loc='center',
+            bbox_to_anchor=(subplot_center_x, 0.85),
+            bbox_transform=fig.transFigure,
+            framealpha=0.95,
+        )
+        leg.get_frame().set_linewidth(0.5)
+
+    # No tight_layout: we already did subplots_adjust to reserve legend band
     if savepath is not None:
-        fig.savefig(savepath, bbox_inches="tight", pad_inches=0.02)
+        # Reduced padding to minimize vertical space in panel
+        fig.savefig(savepath, bbox_inches="tight", pad_inches=0.01)
     if show:
         plt.show()
     else:
         plt.close(fig)
 
 
-def make_rmse_parity_panel(rmse_png: Path, parity_png: Path, savepath: Optional[Path] = None):
-    """Stack RMSE figure (top) and parity figure (bottom) into a single panel PNG.
 
-    Fix: size the rows according to the *true* image aspect ratios and set nearly
-    zero inter-row spacing. This eliminates the large white gap that was caused by
-    letterboxing when the axes aspect did not match the image aspect.
-    """
+def make_rmse_parity_panel(rmse_png: Path, parity_png: Path, savepath: Optional[Path] = None):
+    """Stack RMSE figure (top) and parity figure (bottom) into a single panel PNG."""
     try:
         img_rmse = mpimg.imread(str(rmse_png))
         img_parity = mpimg.imread(str(parity_png))
@@ -743,13 +884,11 @@ def make_rmse_parity_panel(rmse_png: Path, parity_png: Path, savepath: Optional[
 
     matplotlib.use("Agg", force=False)
 
-    # Aspect (height/width) for each image
     rmse_hw = float(img_rmse.shape[0]) / float(img_rmse.shape[1])
     parity_hw = float(img_parity.shape[0]) / float(img_parity.shape[1])
 
-    # Choose a figure width and compute the exact height needed to preserve the image aspects.
-    fig_width = 14.0
-    fig_height = fig_width * (rmse_hw + parity_hw) * 0.8
+    fig_width = 8.5  # match widened plots
+    fig_height = fig_width * (rmse_hw + parity_hw)
 
     fig = plt.figure(figsize=(fig_width, fig_height), dpi=300)
     gs = fig.add_gridspec(2, 1, height_ratios=[rmse_hw, parity_hw])
@@ -757,18 +896,21 @@ def make_rmse_parity_panel(rmse_png: Path, parity_png: Path, savepath: Optional[
     ax0 = fig.add_subplot(gs[0])
     ax1 = fig.add_subplot(gs[1])
 
-    # Display images; keep their aspect and remove any axes decorations
     ax0.imshow(img_rmse, aspect="equal")
     ax0.axis("off")
+
     ax1.imshow(img_parity, aspect="equal")
     ax1.axis("off")
 
-    # Practically no gap between panels
-    fig.subplots_adjust(hspace=0.002, top=0.999, bottom=0.001)
+    # Remove vertical space between panels
+    # Use negative hspace to overlap if needed, and tight margins
+    fig.subplots_adjust(hspace=0.02, top=0.998, bottom=0.002, left=0.0, right=1.0)
 
     if savepath is not None:
         fig.savefig(savepath, bbox_inches="tight", pad_inches=0.02)
     plt.close(fig)
+
+
 
 
 def save_parity_data_json(parity_data: Dict[str, object], path: Path):

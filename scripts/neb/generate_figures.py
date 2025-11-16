@@ -7,7 +7,7 @@ Right: stacked NEB trajectories per SIMPLE composition with VASP (dashed), MLIP 
 Bottom (optional): parity panel spanning BOTH columns.
 
 Usage:
-  python map_plus_neb_gen_compare.py \
+  python generate_figures.py \
       --summary summary_barriers.csv \
       --transform ilr \
       --include_parity \
@@ -18,7 +18,7 @@ Usage:
 import ast, csv, argparse, numpy as np, matplotlib.pyplot as plt
 import os, json
 from matplotlib import gridspec
-from matplotlib.patches import Rectangle, ConnectionPatch
+from matplotlib.patches import Rectangle, ConnectionPatch, Polygon
 from typing import Dict, List, Tuple
 from sklearn.decomposition import PCA
 
@@ -40,10 +40,7 @@ except ImportError:
     HAS_ADJUSTTEXT = False
 
 # ---- novelty analyzer (your API). Falls back to local 'composition.py' if needed. ----
-try:
-    from forge.analysis.composition import CompositionAnalyzer, analyze_composition_distribution
-except Exception:
-    from composition import CompositionAnalyzer, analyze_composition_distribution  # :contentReference[oaicite:0]{index=0}
+from forge.analysis.composition import CompositionAnalyzer, analyze_composition_distribution
 
 # ---------------------- 5-element utilities ----------------------
 TARGET_ELEMENTS = ['V','Cr','Ti','W','Zr']
@@ -246,14 +243,18 @@ def sample_feasible_region(n: int = 6000, seed: int = 0):
     return np.asarray(pts)
 
 def overlay_manifold(ax, pca: PCA, preproc_fn, facecolor=COLOR_GREEN, alpha=0.07):
-    """Project feasible-region samples with same transform and shade convex hull. Returns Z (N,2)."""
+    """Project feasible-region samples with same transform and draw outline. Returns Z (N,2)."""
     S = sample_feasible_region(6000)
     Z = pca.transform(preproc_fn(S))
     try:
         from scipy.spatial import ConvexHull
         hull = ConvexHull(Z)
         verts = hull.vertices
-        ax.fill(Z[verts,0], Z[verts,1], alpha=alpha, facecolor=facecolor, edgecolor='none', zorder=1)
+        # Draw outline only (no fill) - use Polygon with edgecolor only
+        poly_verts = Z[verts]
+        poly = Polygon(poly_verts, closed=True, facecolor='none', edgecolor=facecolor, 
+                      linewidth=2.0, zorder=1)
+        ax.add_patch(poly)
     except Exception:
         ax.scatter(Z[:,0], Z[:,1], s=5, c=facecolor, alpha=alpha, zorder=1)
     return Z
@@ -385,6 +386,10 @@ def add_inset_zoom(ax, ordered_keys: List[str], coords: Dict[str, Tuple[float, f
     axins.set_ylim(y_min, y_max)
     axins.grid(alpha=0.25, linestyle=':', zorder=2)
     axins.set_aspect('equal', adjustable='box')
+    # Remove axis labels from inset
+    axins.set_xticklabels([])
+    axins.set_yticklabels([])
+    axins.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
     
     # Draw rectangle on main plot showing zoomed region (lower zorder so axes appear on top)
     rect = Rectangle((x_min, y_min), x_max - x_min, y_max - y_min,
@@ -553,7 +558,7 @@ def plot_map_and_neb(summary_csv: str,
             cx = Z_poly[:, 0].mean()
             cy_top = Z_poly[:, 1].max()
             axL.text(cx, cy_top + 0.8, 'Feasible region', ha='center', va='bottom',
-                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2)
+                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2, fontsize=18)
     else:
         # still compute Z_poly if zoom='manifold'
         if zoom == 'manifold':
@@ -610,13 +615,16 @@ def plot_map_and_neb(summary_csv: str,
         axL.set_xlim(xl-0.1*(xh-xl), xh+0.1*(xh-xl))
         axL.set_ylim(yl-0.1*(yh-yl), yh+0.1*(yh-yl))
     # 'none' → leave autoscale
+    
+    # Set fixed x-range to -10, 15 as requested
+    axL.set_xlim(-10, 15)
 
     # ----- Add inset zoom for clustered points -----
-    # Inset in bottom-right: 50% of width/height
+    # Inset in bottom-right, adjusted to avoid overlap with feasible region and right edge
     dataset_list = [f for f in dataset.keys() if f in coords] if dataset else []
     add_inset_zoom(axL, ordered_keys, coords, 
                    indices_to_zoom=[1, 2, 4, 5, 6],
-                   inset_bounds=(0.42, -0.05, 0.65, 0.65),
+                   inset_bounds=(0.50, 0.02, 0.48, 0.48),
                    zoom_padding=0.5,
                    dataset_formulas=dataset_list)
 
@@ -699,7 +707,7 @@ def plot_map_only(summary_csv: str,
             cx = Z_poly[:, 0].mean()
             cy_top = Z_poly[:, 1].max()
             axL.text(cx, cy_top + 0.8, 'Feasible region', ha='center', va='bottom',
-                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2)
+                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2, fontsize=18)
     else:
         if zoom == 'manifold':
             Z_poly = pca.transform(preproc_fn(sample_feasible_region(4000)))
@@ -750,12 +758,15 @@ def plot_map_only(summary_csv: str,
         xl, xh = np.percentile(XY[:,0], [2.0, 98.0]); yl, yh = np.percentile(XY[:,1], [2.0, 98.0])
         axL.set_xlim(xl-0.1*(xh-xl), xh+0.1*(xh-xl))
         axL.set_ylim(yl-0.1*(yh-yl), yh+0.1*(yh-yl))
+    
+    # Set fixed x-range to -10, 15 as requested
+    axL.set_xlim(-10, 15)
 
     # ----- Add inset zoom for clustered points -----
     dataset_list = [f for f in dataset.keys() if f in coords] if dataset else []
     add_inset_zoom(axL, ordered_keys, coords, 
                    indices_to_zoom=[1, 2, 4, 5, 6],
-                   inset_bounds=(0.48, 0.02, 0.50, 0.50),
+                   inset_bounds=(0.50, 0.02, 0.48, 0.48),
                    zoom_padding=0.5,
                    dataset_formulas=dataset_list)
 

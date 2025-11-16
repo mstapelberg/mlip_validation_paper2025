@@ -1,0 +1,88 @@
+{
+  "baseline": {
+    "scales": {
+      "energy_per_atom_std_eV": 0.6573984359560641,
+      "force_component_rms_eV_per_A": 1.0158078565097826,
+      "stress_component_rms_eVa3": 0.06265953119711301,
+      "pressure_rms_GPa": 13.63658934164442,
+      "dev_frobenius_rms_GPa": 9.14503548174941,
+      "section_fractions": {
+        "full_sigma": 0.07736731576937762,
+        "pressure": 0.4358056510118366,
+        "exclude": 0.5577033218785796
+      },
+      "effective_stress_scale_in_loss_units": 0.06265953119711301,
+      "stress_loss_units": "eva3"
+    },
+    "loss_types": {
+      "energy": "mse",
+      "force": "huber",
+      "stress": "huber"
+    },
+    "use_config_aware": false,
+    "config_aware_params": {
+      "weight_p": 0.2,
+      "weight_s": 0.8,
+      "allow_pressure_for_defects": true,
+      "include_intermetallics_in_full": false
+    },
+    "targets": {
+      "energy": 1.0,
+      "force": 1.0,
+      "stress": 1.0
+    },
+    "weights_normalized_to_energy": {
+      "energy": 1.0,
+      "force": 0.42212393877937754,
+      "stress": 27.55349034842758
+    },
+    "approx_expected_contribution_fraction": {
+      "energy": 0.33333333333333337,
+      "force": 0.33333333333333337,
+      "stress": 0.33333333333333337
+    }
+  },
+  "config_aware": {
+    "scales": {
+      "energy_per_atom_std_eV": 0.6573984359560641,
+      "force_component_rms_eV_per_A": 1.0158078565097826,
+      "stress_component_rms_eVa3": 0.06265953119711301,
+      "pressure_rms_GPa": 13.63658934164442,
+      "dev_frobenius_rms_GPa": 9.14503548174941,
+      "section_fractions": {
+        "full_sigma": 0.07736731576937762,
+        "pressure": 0.4358056510118366,
+        "exclude": 0.5577033218785796
+      },
+      "effective_stress_scale_in_loss_units": 0.0734719785734415,
+      "stress_loss_units": "eva3"
+    },
+    "loss_types": {
+      "energy": "mse",
+      "force": "huber",
+      "stress": "huber"
+    },
+    "use_config_aware": true,
+    "config_aware_params": {
+      "weight_p": 0.2,
+      "weight_s": 0.8,
+      "allow_pressure_for_defects": true,
+      "include_intermetallics_in_full": false
+    },
+    "targets": {
+      "energy": 1.0,
+      "force": 1.0,
+      "stress": 1.0
+    },
+    "weights_normalized_to_energy": {
+      "energy": 1.0,
+      "force": 0.42212393877937754,
+      "stress": 21.70074930749503
+    },
+    "approx_expected_contribution_fraction": {
+      "energy": 0.33333333333333337,
+      "force": 0.33333333333333337,
+      "stress": 0.33333333333333337
+    }
+  }
+}
