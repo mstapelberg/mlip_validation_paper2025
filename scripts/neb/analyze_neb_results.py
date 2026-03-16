@@ -23,29 +23,20 @@ simple_results/
 Run:
     $ python analyse_neb_results.py  # writes *.pdf and *.csv
 """
-import os, glob, re, json
+import os, sys, glob, re, json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from pathlib import Path
 from matplotlib import gridspec
 from matplotlib.ticker import MaxNLocator
-from ase.io import read                   # ASE I/O  [oai_citation:4‡CAMD Wiki](https://wiki.fysik.dtu.dk/ase/ase/io/io.html?utm_source=chatgpt.com)
+from ase.io import read
 
-# ───────────────────────── Visual defaults ──────────────────────────
-WONG8 = ['#0072B2', '#D55E00', '#009E73', '#CC79A7',
-         '#F0E442', '#56B4E9', '#E69F00', '#000000']  # Wong 2011  [oai_citation:5‡Nature](https://www.nature.com/articles/nmeth.1618?utm_source=chatgpt.com)
+# Shared publication style
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig, TOL_BRIGHT
 
-plt.rcParams.update({
-    'font.family': 'DejaVu Sans',  # robust default on most systems
-    'font.sans-serif': ['DejaVu Sans', 'Arial', 'Liberation Sans', 'sans-serif'],
-    'font.size'  : 8,
-    'axes.linewidth': 0.6,
-    'lines.linewidth': 1.0,
-    'xtick.major.size': 2.5,
-    'ytick.major.size': 2.5,
-    'axes.unicode_minus': False,
-    'axes.prop_cycle': plt.cycler(color=WONG8)
-})
+set_pub_style(base_fontsize=8)
 
 # ───────────────────────── Helper functions ─────────────────────────
 def _energy_from_atoms(atoms, context_label=""):
@@ -377,12 +368,12 @@ def main(main_data='./simple_data'):
 
     # NEB panel
     fig1 = neb_multi_panel(df, labels=results_labels)
-    fig1.savefig('neb_profiles_all.png', bbox_inches='tight', dpi=450)
+    save_fig(fig1, 'neb_profiles_all')
 
     # Parity plot
     fig2, ax2 = plt.subplots(figsize=(3.3, 3.0))
     parity_plot(df, labels=results_labels, ax=ax2)
-    fig2.savefig('barrier_parity.png', bbox_inches='tight', dpi=450)
+    save_fig(fig2, 'barrier_parity')
 
     if not barriers_df.empty:
         print(barriers_df[['composition', 'label', 'barrier_vasp', 'barrier_mlip']])

@@ -1,6 +1,7 @@
 
 #!/usr/bin/env python3
 import re
+import sys
 import tarfile
 import argparse
 import pickle
@@ -11,25 +12,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
-# Global plotting color palette
-PLOT_COLOR_PALETTE = [
-    "#2A33C3",  # blue
-    "#A35D00",  # brown/orange
-    "#0B7285",  # teal
-    "#8F2D56",  # magenta
-    "#6E8B00",  # olive
-]
 
-# Set matplotlib options using the unified matplotlib.rcParams interface
-matplotlib.rcParams['font.family'] = 'sans-serif'
-matplotlib.rcParams['font.sans-serif'] = ['Helvetica', 'Arial', 'DejaVu Sans']
+# Shared publication style
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig, TOL_BRIGHT, DOUBLE_COL, SINGLE_COL, fig_size
 
-try:
-    from cycler import cycler as _cycler  # type: ignore
-    matplotlib.rcParams["axes.prop_cycle"] = _cycler(color=PLOT_COLOR_PALETTE)
-except Exception:
-    # If cycler isn't available, silently keep matplotlib defaults
-    pass
+set_pub_style()
 
 # Optional imports for evaluation mode (XYZ + models)
 _ASE_AVAILABLE = True
@@ -677,13 +665,13 @@ def save_metric_panel(df: pd.DataFrame, group_col: str, outfile: Path, order: li
                 sem_vals.append(0.0)
         means[key] = mean_vals
         sems[key] = sem_vals
-    plt.figure(figsize=(12, 6.5))
+    plt.figure(figsize=fig_size(DOUBLE_COL, 0.55))
     for i, (key, ylabel) in enumerate(metrics, start=1):
         ax = plt.subplot(2, 2, i)
         x = np.arange(len(order))
         # Distinct colors per bar
-        if len(PLOT_COLOR_PALETTE) > 0:
-            colors = [PLOT_COLOR_PALETTE[j % len(PLOT_COLOR_PALETTE)] for j in range(len(order))]
+        if len(TOL_BRIGHT) > 0:
+            colors = [TOL_BRIGHT[j % len(TOL_BRIGHT)] for j in range(len(order))]
         else:
             colors = None
         ax.bar(x, means[key], yerr=sems[key], capsize=3, color=colors)
@@ -693,8 +681,7 @@ def save_metric_panel(df: pd.DataFrame, group_col: str, outfile: Path, order: li
         ax.set_title(f"{title_prefix} — {ylabel}", pad=2)
         ax.grid(True, axis="y", linestyle=":", alpha=0.6)
     plt.tight_layout(pad=0.25, w_pad=0.4, h_pad=0.45)
-    outfile.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(outfile, dpi=200)
+    save_fig(plt.gcf(), outfile)
     plt.close()
 
 
@@ -735,9 +722,9 @@ def save_stress_compare_bars(
     means_cfg, sem_cfg = _agg_for(metric_cfg)
     x = np.arange(len(order))
     width = 0.36
-    plt.figure(figsize=(12, 4.5))
-    color_all = PLOT_COLOR_PALETTE[0] if len(PLOT_COLOR_PALETTE) else None
-    color_cfg = PLOT_COLOR_PALETTE[3] if len(PLOT_COLOR_PALETTE) > 3 else None
+    plt.figure(figsize=fig_size(DOUBLE_COL, 0.38))
+    color_all = TOL_BRIGHT[0] if len(TOL_BRIGHT) else None
+    color_cfg = TOL_BRIGHT[3] if len(TOL_BRIGHT) > 3 else None
     plt.bar(x - width/2, means_all, yerr=sem_all, width=width, capsize=3, label="All-stress", color=color_all)
     plt.bar(x + width/2, means_cfg, yerr=sem_cfg, width=width, capsize=3, label="Config-aware", color=color_cfg)
     plt.xticks(x, [str(v) for v in order], rotation=0)
@@ -746,8 +733,7 @@ def save_stress_compare_bars(
     plt.grid(True, axis="y", linestyle=":", alpha=0.6)
     plt.legend(frameon=False)
     plt.tight_layout()
-    Path(outfile).parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(outfile, dpi=200)
+    save_fig(plt.gcf(), outfile)
     plt.close()
 
 
@@ -905,7 +891,7 @@ def save_four_metric_horizontal_by_loss_variant(
 
     # Plot
     import matplotlib.pyplot as plt
-    fig, ax_bottom = plt.subplots(figsize=(14, 6))
+    fig, ax_bottom = plt.subplots(figsize=fig_size(DOUBLE_COL, 0.65))
     ax_top = ax_bottom.twiny()
 
     y = np.arange(len(variants_order))
@@ -920,10 +906,10 @@ def save_four_metric_horizontal_by_loss_variant(
         ("stress_all_GPa", "Stress RMSE (GPa)", "bottom"),
         ("config_stress_metric_GPa", "Config-aware stress RMSE (GPa)", "bottom"),
     ]
-    colors = ["#2A33C3", "#A35D00", "#0B7285", "#8F2D56"]
+    colors = TOL_BRIGHT[:4]
     if elasticity_data:
         metric_order.append(("c44_GPa", "C₄₄ (GPa)", "bottom"))
-        colors.append("#6E8B00")
+        colors.append(TOL_BRIGHT[4])
 
     errkw_top = dict(elinewidth=1.25, ecolor="black", capsize=3, capthick=1.25, zorder=6)
     errkw_bottom = dict(elinewidth=1.25, ecolor="black", capsize=3, capthick=1.25, zorder=6)
@@ -962,7 +948,7 @@ def save_four_metric_horizontal_by_loss_variant(
         label = v + "*" if elasticity_data and not elasticity_data.get(v, {}).get("born_stable", True) else v
         y_labels.append(label)
     ax_bottom.set_yticks(y)
-    ax_bottom.set_yticklabels(y_labels, fontsize=12, fontweight="bold")
+    ax_bottom.set_yticklabels(y_labels, fontsize=9, fontweight="bold")
     if elasticity_data:
         for v, tick in zip(variants_order, ax_bottom.get_yticklabels()):
             if not elasticity_data.get(v, {}).get("born_stable", True):
@@ -981,21 +967,21 @@ def save_four_metric_horizontal_by_loss_variant(
         if c44_dft:
             ax_bottom.axvline(c44_dft, color="black", ls="--", lw=2, alpha=0.8)
             ax_bottom.text(c44_dft * 0.89, ymid, f"DFT C₄₄\n{c44_dft:.1f} GPa",
-                           rotation=90, va="center", ha="right", fontsize=10,
+                           rotation=90, va="center", ha="right", fontsize=8,
                            fontweight="bold", color="black",
-                           bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="black", alpha=0.9))
+                           bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="black", alpha=0.9))
         if c44_exp:
             ax_bottom.axvline(c44_exp, color="dimgray", ls="--", lw=2, alpha=0.8)
             ax_bottom.text(c44_exp * 1.15, ymid, f"Exp C₄₄\n{c44_exp:.1f} GPa",
-                           rotation=90, va="center", ha="left", fontsize=10,
+                           rotation=90, va="center", ha="left", fontsize=8,
                            fontweight="bold", color="dimgray",
-                           bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="dimgray", alpha=0.9))
+                           bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="dimgray", alpha=0.9))
     else:
         ax_top.set_xlim(0, 200)
         ax_bottom.set_xlim(0, 2.5)
 
-    ax_top.set_xlabel("|ΔE|/atom RMSE (meV), F RMSE (meV/A)", fontsize=12, fontweight="bold")
-    ax_bottom.set_xlabel("RMSE (GPa)", fontsize=12, fontweight="bold")
+    ax_top.set_xlabel("|ΔE|/atom RMSE (meV), F RMSE (meV/A)", fontsize=9, fontweight="bold")
+    ax_bottom.set_xlabel("RMSE (GPa)", fontsize=9, fontweight="bold")
     ax_bottom.grid(True, axis="x", linestyle=":", alpha=0.6)
 
     # --- FIXED: Figure-level legend (no clipping) ---
@@ -1019,9 +1005,8 @@ def save_four_metric_horizontal_by_loss_variant(
     legend.set_zorder(1000)
     legend.set_in_layout(False)
 
-    Path(outfile).parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()
-    plt.savefig(outfile, dpi=200, bbox_inches="tight")
+    save_fig(fig, outfile)
     plt.close(fig)
 
 
@@ -1204,7 +1189,7 @@ def save_four_metric_vertical_by_loss_variant(
         sems_right["c44_GPa"] = c44_errs
 
     # --- PLOT SETUP ---
-    fig, ax_left = plt.subplots(figsize=(17.0, 10.0))  # a bit wider
+    fig, ax_left = plt.subplots(figsize=fig_size(DOUBLE_COL, 0.85))
     ax_right = ax_left.twinx()
 
     x = np.arange(len(variants_order))
@@ -1215,9 +1200,9 @@ def save_four_metric_vertical_by_loss_variant(
     width_each = total_width / max(1, k)
     base_offsets = (np.arange(k) - (k - 1) / 2.0) * width_each
 
-    colors = ["#2A33C3", "#A35D00", "#0B7285", "#8F2D56"]
+    colors = TOL_BRIGHT[:4]
     if elasticity_data:
-        colors.append("#6E8B00")
+        colors.append(TOL_BRIGHT[4])
 
     metric_order = [
         ("e_pa_abs_meV", "|ΔE|/atom RMSE (meV)", "left", colors[0]),
@@ -1228,7 +1213,7 @@ def save_four_metric_vertical_by_loss_variant(
     if elasticity_data:
         metric_order.append(("c44_GPa", "C₄₄ (GPa)", "right", colors[4]))
 
-    errkw = dict(elinewidth=1.25, ecolor="black", capsize=5, capthick=1.25, zorder=6)
+    errkw = dict(elinewidth=0.8, ecolor="black", capsize=3, capthick=0.8, zorder=6)
 
     # Bars + value labels
     for i, (key, label, which_ax, color) in enumerate(metric_order):
@@ -1267,7 +1252,7 @@ def save_four_metric_vertical_by_loss_variant(
                     label_text,
                     ha="center",
                     va="bottom",
-                    fontsize=12,
+                    fontsize=7,
                     fontweight="bold",
                 )
 
@@ -1280,17 +1265,17 @@ def save_four_metric_vertical_by_loss_variant(
             label = v
         x_labels.append(label)
     ax_left.set_xticks(x)
-    ax_left.set_xticklabels(x_labels, fontsize=14, fontweight="bold")
+    ax_left.set_xticklabels(x_labels, fontsize=9, fontweight="bold")
 
     # Y-axes
     ax_left.set_ylim(0, 200)
     ax_left.set_ylabel(
         "Energy & Force error",
-        fontsize=14,
+        fontsize=10,
         fontweight="bold",
         color="black",
     )
-    ax_left.tick_params(axis="y", labelsize=12, labelcolor="black")
+    ax_left.tick_params(axis="y", labelsize=9, labelcolor="black")
 
     if elasticity_data:
         ax_right.set_yscale("log")
@@ -1299,11 +1284,11 @@ def save_four_metric_vertical_by_loss_variant(
         ax_right.set_ylim(0, 2.5)
     ax_right.set_ylabel(
         "Stress & elasticity (GPa)",
-        fontsize=14,
+        fontsize=10,
         fontweight="bold",
         color="black",
     )
-    ax_right.tick_params(axis="y", labelsize=12, labelcolor="black")
+    ax_right.tick_params(axis="y", labelsize=9, labelcolor="black")
 
     # C44 reference lines
     if elasticity_data and c44_dft:
@@ -1314,11 +1299,11 @@ def save_four_metric_vertical_by_loss_variant(
             f"DFT C₄₄: {c44_dft:.1f} GPa",
             ha="right",
             va="bottom",
-            fontsize=12,
+            fontsize=8,
             fontweight="bold",
             color="black",
             bbox=dict(
-                boxstyle="round,pad=0.4", fc="white", ec="black", alpha=0.9
+                boxstyle="round,pad=0.3", fc="white", ec="black", alpha=0.9
             ),
         )
 
@@ -1330,11 +1315,11 @@ def save_four_metric_vertical_by_loss_variant(
             f"Exp C₄₄: {c44_exp:.1f} GPa",
             ha="right",
             va="top",
-            fontsize=12,
+            fontsize=8,
             fontweight="bold",
             color="dimgray",
             bbox=dict(
-                boxstyle="round,pad=0.4", fc="white", ec="dimgray", alpha=0.9
+                boxstyle="round,pad=0.3", fc="white", ec="dimgray", alpha=0.9
             ),
         )
 
@@ -1354,12 +1339,12 @@ def save_four_metric_vertical_by_loss_variant(
         edgecolor="black",
         facecolor="white",
         framealpha=1.0,
-        fontsize=12,
-        title_fontsize=12,
-        handlelength=3.45,
-        handleheight=1.2,
-        labelspacing=0.7,
-        columnspacing=1.7,
+        fontsize=8,
+        title_fontsize=8,
+        handlelength=2.0,
+        handleheight=0.8,
+        labelspacing=0.4,
+        columnspacing=1.0,
     )
     legend.set_zorder(1000)
 
@@ -1367,12 +1352,12 @@ def save_four_metric_vertical_by_loss_variant(
     # ARROWS
     # ============================================================
 
-    # Left-axis arrows (energy, force) – unchanged
+    # Left-axis arrows (energy, force) – scaled for publication width
     LEFT_ARROW_X_START = -0.30
     LEFT_ARROW_X_END = -0.50
-    LEFT_ARROW_Y_POSITIONS = [145, 155]
-    LEFT_ARROW_LINEWIDTH = 4.0
-    LEFT_ARROW_HEAD_SIZE = 15
+    LEFT_ARROW_Y_POSITIONS = [145, 160]
+    LEFT_ARROW_LINEWIDTH = 2.0
+    LEFT_ARROW_HEAD_SIZE = 10
 
     left_metrics = [
         (key, color) for key, label, which_ax, color in metric_order if which_ax == "left"
@@ -1400,8 +1385,8 @@ def save_four_metric_vertical_by_loss_variant(
     # Right-axis arrows (stress, config-aware stress, C44)
     RIGHT_ARROW_Y_POSITIONS_LOG = [15.0, 9.0, 6.0]
     RIGHT_ARROW_Y_POSITIONS_LIN = [1.8, 1.3]
-    RIGHT_ARROW_LINEWIDTH = 4.0
-    RIGHT_ARROW_HEAD_SIZE = 15
+    RIGHT_ARROW_LINEWIDTH = 2.0
+    RIGHT_ARROW_HEAD_SIZE = 10
 
     # Target arrow geometry in x (data) space
     ARROW_MIN_LENGTH = 0.20       # requested ~0.2
@@ -1455,13 +1440,281 @@ def save_four_metric_vertical_by_loss_variant(
             transform=trans_right,
         )
 
-    Path(outfile).parent.mkdir(parents=True, exist_ok=True)
-    plt.subplots_adjust(right=0.90, left=0.08)
-    plt.tight_layout(rect=[0, 0, 0.90, 1])
-    plt.savefig(outfile, dpi=200)
+    plt.subplots_adjust(right=0.88, left=0.10, bottom=0.12)
+    plt.tight_layout(rect=[0, 0, 0.88, 1])
+    save_fig(fig, outfile)
     plt.close(fig)
 
 
+# ===================================================================
+# Faceted 2×2 panel figure  (replacement for the overloaded dual-axis
+# vertical / horizontal charts)
+# ===================================================================
+
+def save_four_metric_faceted(
+    df: pd.DataFrame,
+    outfile: Path | str,
+    variants_order: list[str] | None = None,
+    elasticity_json_path: Path | str | None = None,
+):
+    """Publication-quality 2×2 faceted bar chart.
+
+    Panels
+    ------
+    (a) |ΔE|/atom RMSE  (meV)
+    (b) Force RMSE  (meV/Å)
+    (c) Stress RMSE — grouped: all-stress (solid) + config-aware (hatched)
+    (d) C₄₄ (GPa) with DFT / Exp reference lines
+
+    Each loss variant gets a *consistent colour* across all panels so
+    the reader can track CATW at a glance.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import json
+    from pathlib import Path as _Path
+    from matplotlib.patches import Patch
+
+    if df is None or len(df) == 0 or "loss_variant" not in df.columns:
+        return
+
+    d = df.copy()
+
+    # ---- canonical variant order -----------------------------------------
+    canonical = ["MSE", "MSETW", "CA", "CATW"]
+    if variants_order is None:
+        variants_order = [
+            v for v in canonical
+            if v in d["loss_variant"].astype(str).unique().tolist()
+        ]
+    if not variants_order:
+        return
+
+    # ---- colours: one per variant ----------------------------------------
+    # Give CATW the most saturated / prominent slot (blue).
+    VARIANT_COLORS = {
+        "MSE":   TOL_BRIGHT[6],   # grey  — baseline
+        "MSETW": TOL_BRIGHT[4],   # cyan
+        "CA":    TOL_BRIGHT[1],   # coral
+        "CATW":  TOL_BRIGHT[0],   # blue  — hero
+    }
+    bar_colors = [VARIANT_COLORS.get(v, TOL_BRIGHT[5]) for v in variants_order]
+
+    # ---- load elasticity data (same logic as vertical fn) ----------------
+    elasticity_data = {}
+    c44_dft = c44_exp = None
+    if elasticity_json_path is not None:
+        try:
+            with open(elasticity_json_path, "r") as fh:
+                elast_json = json.load(fh)
+            variant_mapping = [
+                ("CATW", ["catw"]), ("MSETW", ["msetw"]),
+                ("CA", ["ca"]), ("MSE", ["mse"]),
+            ]
+            matched = set()
+            for variant, terms in variant_mapping:
+                for key, data in elast_json.items():
+                    if key in matched:
+                        continue
+                    backend = data.get("backend", "").lower()
+                    if any(t in backend for t in terms):
+                        c44 = data.get("cubic_constants_gpa", {}).get("C44")
+                        c11 = data.get("cubic_constants_gpa", {}).get("C11")
+                        c12 = data.get("cubic_constants_gpa", {}).get("C12")
+                        reps = [
+                            float(r.get("cubic_constants_gpa", {}).get("C44", r.get("C44", np.nan)))
+                            for r in data.get("replicates", {}).get("details", [])
+                            if isinstance(r, dict) and (
+                                r.get("cubic_constants_gpa", {}).get("C44") is not None
+                                or r.get("C44") is not None
+                            )
+                        ]
+                        c44_std = np.std(reps, ddof=1) if len(reps) > 1 else 0.0
+                        c44_sem = c44_std / np.sqrt(len(reps)) if reps else 0.0
+                        born = (c44 or 0) > 0 and (c11 or 0) - (c12 or 0) > 0 and (c11 or 0) > 0
+                        elasticity_data[variant] = dict(
+                            C44=c44, C44_sem=c44_sem, born_stable=born,
+                        )
+                        matched.add(key)
+                        break
+            if "DFT" in elast_json:
+                c44_dft = elast_json["DFT"].get("cubic_constants_gpa", {}).get("C44")
+            if "PREDEXP" in elast_json:
+                c44_exp = elast_json["PREDEXP"].get("cubic_constants_gpa", {}).get("C44")
+        except Exception as exc:
+            print(f"[WARN] Could not load elasticity data: {exc}")
+
+    # ---- aggregate metrics -----------------------------------------------
+    raw_metrics = [
+        "e_pa_abs_meV", "f_rmse", "stress_all_GPa", "config_stress_metric_GPa",
+    ]
+    grp = d.groupby("loss_variant", dropna=False)
+    means, sems = {}, {}
+    for key in raw_metrics:
+        agg = grp[key].agg(["mean", "std", "count"]).reset_index().set_index("loss_variant")
+        mv, ev = [], []
+        for v in variants_order:
+            if v in agg.index:
+                n = max(int(agg.loc[v, "count"]), 1)
+                s = float(agg.loc[v, "std"]) if np.isfinite(agg.loc[v, "std"]) else 0.0
+                mv.append(float(agg.loc[v, "mean"]))
+                ev.append(s / np.sqrt(n))
+            else:
+                mv.append(np.nan)
+                ev.append(0.0)
+        means[key] = np.array(mv)
+        sems[key] = np.array(ev)
+
+    # derived: force in meV/Å
+    means["f_meV_A"] = means["f_rmse"] * 1000.0
+    sems["f_meV_A"]  = sems["f_rmse"]  * 1000.0
+
+    # C44
+    c44_vals, c44_errs = [], []
+    for v in variants_order:
+        ed = elasticity_data.get(v, {})
+        c = ed.get("C44")
+        c44_vals.append(abs(c) if c is not None else np.nan)
+        c44_errs.append(ed.get("C44_sem", 0.0))
+    means["c44"] = np.array(c44_vals)
+    sems["c44"]  = np.array(c44_errs)
+
+    # ---- figure ----------------------------------------------------------
+    fig, axes = plt.subplots(2, 2, figsize=fig_size(DOUBLE_COL, 0.75))
+    ax_e, ax_f = axes[0]
+    ax_s, ax_c = axes[1]
+
+    x = np.arange(len(variants_order))
+    bw = 0.55   # bar width
+    errkw = dict(elinewidth=0.8, ecolor="black", capsize=3, capthick=0.8, zorder=6)
+
+    # --- x-tick labels (mark Born-unstable) --------------------------------
+    x_labels = []
+    for v in variants_order:
+        if elasticity_data.get(v, {}).get("born_stable") is False:
+            x_labels.append(f"{v}*")
+        else:
+            x_labels.append(v)
+
+    def _annotate_bars(ax, xpos, vals, errs, fmt=".1f"):
+        """Small value labels above each bar."""
+        for xi, val, err in zip(xpos, vals, errs):
+            if np.isfinite(val) and val > 0:
+                ax.text(
+                    xi, val + err + (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.01,
+                    f"{val:{fmt}}", ha="center", va="bottom",
+                    fontsize=7, fontweight="bold",
+                )
+
+    # ---- (a) Energy RMSE -------------------------------------------------
+    ax_e.bar(x, means["e_pa_abs_meV"], yerr=sems["e_pa_abs_meV"],
+             width=bw, color=bar_colors, error_kw=errkw, zorder=5)
+    ax_e.set_ylabel("|ΔE|/atom RMSE (meV)", fontsize=9)
+    ax_e.set_xticks(x); ax_e.set_xticklabels(x_labels, fontsize=8, fontweight="bold")
+    ax_e.set_title("(a) Energy", fontsize=9, fontweight="bold", pad=4)
+    _annotate_bars(ax_e, x, means["e_pa_abs_meV"], sems["e_pa_abs_meV"])
+
+    # ---- (b) Force RMSE --------------------------------------------------
+    ax_f.bar(x, means["f_meV_A"], yerr=sems["f_meV_A"],
+             width=bw, color=bar_colors, error_kw=errkw, zorder=5)
+    ax_f.set_ylabel("Force RMSE (meV/Å)", fontsize=9)
+    ax_f.set_xticks(x); ax_f.set_xticklabels(x_labels, fontsize=8, fontweight="bold")
+    ax_f.set_title("(b) Forces", fontsize=9, fontweight="bold", pad=4)
+    _annotate_bars(ax_f, x, means["f_meV_A"], sems["f_meV_A"])
+
+    # ---- (c) Stress metrics (grouped: solid + hatched) --------------------
+    half = 0.18
+    x_left  = x - half
+    x_right = x + half
+    ax_s.bar(x_left, means["stress_all_GPa"], yerr=sems["stress_all_GPa"],
+             width=half * 1.8, color=bar_colors, error_kw=errkw, zorder=5,
+             label="All-stress RMSE")
+    # config-aware: same colour but hatched
+    ax_s.bar(
+        x_right, means["config_stress_metric_GPa"],
+        yerr=sems["config_stress_metric_GPa"],
+        width=half * 1.8, color=bar_colors, error_kw=errkw, zorder=5,
+        label="Config-aware RMSE", hatch="//", edgecolor="white", linewidth=0.0,
+    )
+    ax_s.set_ylabel("RMSE (GPa)", fontsize=9)
+    ax_s.set_xticks(x); ax_s.set_xticklabels(x_labels, fontsize=8, fontweight="bold")
+    ax_s.set_title("(c) Stress", fontsize=9, fontweight="bold", pad=4)
+    # small legend for solid vs hatched
+    ax_s.legend(
+        [Patch(facecolor="grey", edgecolor="black"),
+         Patch(facecolor="grey", edgecolor="white", hatch="//")],
+        ["All-stress", "Config-aware"],
+        fontsize=6.5, loc="upper left", framealpha=0.9,
+        handlelength=1.2, handleheight=0.9, borderpad=0.3,
+    )
+    # annotate both sets
+    for xi, v1, e1, v2, e2 in zip(
+        x, means["stress_all_GPa"], sems["stress_all_GPa"],
+        means["config_stress_metric_GPa"], sems["config_stress_metric_GPa"],
+    ):
+        ymax = ax_s.get_ylim()[1]
+        dy = ymax * 0.01
+        if np.isfinite(v1):
+            ax_s.text(xi - half, v1 + e1 + dy, f"{v1:.2f}",
+                      ha="center", va="bottom", fontsize=6, fontweight="bold")
+        if np.isfinite(v2):
+            ax_s.text(xi + half, v2 + e2 + dy, f"{v2:.2f}",
+                      ha="center", va="bottom", fontsize=6, fontweight="bold")
+
+    # ---- (d) C₄₄ ---------------------------------------------------------
+    ax_c.bar(x, means["c44"], yerr=sems["c44"],
+             width=bw, color=bar_colors, error_kw=errkw, zorder=5)
+    ax_c.set_ylabel("C₄₄ (GPa)", fontsize=9)
+    ax_c.set_xticks(x); ax_c.set_xticklabels(x_labels, fontsize=8, fontweight="bold")
+    ax_c.set_title("(d) Shear modulus C₄₄", fontsize=9, fontweight="bold", pad=4)
+    _annotate_bars(ax_c, x, means["c44"], sems["c44"], fmt=".1f")
+
+    x_center = (len(variants_order) - 1) / 2.0   # center of the x-axis
+    if c44_dft is not None:
+        ax_c.axhline(c44_dft, color="black", ls="--", lw=1.2, alpha=0.8, zorder=1)
+        ax_c.text(
+            x_center, c44_dft + 0.8,
+            f"DFT {c44_dft:.1f} GPa", fontsize=7, fontweight="bold",
+            ha="center", va="bottom",
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", alpha=0.9),
+        )
+    if c44_exp is not None:
+        ax_c.axhline(c44_exp, color="dimgray", ls="--", lw=1.2, alpha=0.8, zorder=1)
+        ax_c.text(
+            x_center, c44_exp + 0.8,
+            f"Exp {c44_exp:.1f} GPa", fontsize=7, fontweight="bold",
+            ha="center", va="bottom", color="dimgray",
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="dimgray", alpha=0.9),
+        )
+    # extend y to fit reference lines + labels
+    if c44_exp is not None:
+        ax_c.set_ylim(0, max(c44_exp, np.nanmax(means["c44"])) * 1.25)
+
+    # ---- shared cosmetics ------------------------------------------------
+    for ax in axes.flat:
+        ax.grid(True, axis="y", linestyle=":", alpha=0.5, zorder=0)
+        ax.tick_params(axis="y", labelsize=8)
+        ax.set_xlim(-0.5, len(variants_order) - 0.5)
+        # Expand ylim top by 15 % so value labels never clip
+        ylo, yhi = ax.get_ylim()
+        ax.set_ylim(ylo, yhi * 1.15)
+
+    # shared colour legend (top, tight against panels)
+    legend_patches = [
+        Patch(facecolor=VARIANT_COLORS.get(v, "grey"), edgecolor="black", linewidth=0.5, label=v)
+        for v in variants_order
+    ]
+    fig.legend(
+        handles=legend_patches, loc="upper center",
+        bbox_to_anchor=(0.5, 1.005), ncol=len(variants_order),
+        fontsize=8, frameon=True, fancybox=False,
+        edgecolor="black", facecolor="white", framealpha=1.0,
+        handlelength=1.5, handleheight=0.9, columnspacing=1.5,
+    )
+
+    fig.tight_layout(rect=[0, 0, 1, 0.965])
+    save_fig(fig, outfile)
+    plt.close(fig)
 
 
 def parse_arch(text: str):
@@ -1574,7 +1827,7 @@ def config_aware_composite(sum_df: pd.DataFrame, by_cols, metrics=("f_mean","e_m
 def save_bar_with_err(x_labels, means, errs, ylabel, title, outfile):
     import matplotlib.pyplot as plt
     import numpy as np
-    plt.figure(figsize=(8,4))
+    plt.figure(figsize=fig_size(DOUBLE_COL, 0.45))
     x = np.arange(len(x_labels))
     plt.bar(x, means, yerr=errs, capsize=3)
     plt.xticks(x, x_labels, rotation=0)
@@ -1582,7 +1835,7 @@ def save_bar_with_err(x_labels, means, errs, ylabel, title, outfile):
     plt.title(title)
     plt.grid(True, axis="y", linestyle=":", alpha=0.6)
     plt.tight_layout()
-    plt.savefig(outfile, dpi=200)
+    save_fig(plt.gcf(), outfile)
     plt.close()
 
 def save_grouped_bar(data_df, x_col, group_col, value_col, x_order=None, group_order=None,
@@ -1595,7 +1848,7 @@ def save_grouped_bar(data_df, x_col, group_col, value_col, x_order=None, group_o
     x = np.arange(len(x_order))
     width = 0.8 / max(1, len(group_order))
     offsets = (np.arange(len(group_order)) - (len(group_order)-1)/2.0) * width
-    plt.figure(figsize=(12,5))
+    plt.figure(figsize=fig_size(DOUBLE_COL, 0.5))
     for i, grp in enumerate(group_order):
         sub = d[d[group_col] == grp]
         y = []
@@ -1609,7 +1862,7 @@ def save_grouped_bar(data_df, x_col, group_col, value_col, x_order=None, group_o
     plt.grid(True, axis="y", linestyle=":", alpha=0.6)
     plt.legend(frameon=False, title=group_col)
     plt.tight_layout()
-    plt.savefig(outfile, dpi=200)
+    save_fig(plt.gcf(), outfile)
     plt.close()
 
 
@@ -1642,7 +1895,7 @@ def save_grouped_bar_with_overlay(
     width_overlay = width_total / max(1, overlays)
     width_group = width_overlay / max(1, groups)
     base_offsets = (np.arange(overlays) - (overlays - 1)/2.0) * width_overlay
-    plt.figure(figsize=(12, 5))
+    plt.figure(figsize=fig_size(DOUBLE_COL, 0.5))
     for j, ov in enumerate(overlay_order):
         for i, grp in enumerate(group_order):
             sub = d[(d[group_col] == grp) & (d[overlay_col] == ov)]
@@ -1659,7 +1912,7 @@ def save_grouped_bar_with_overlay(
     plt.grid(True, axis="y", linestyle=":", alpha=0.6)
     plt.legend(frameon=False, title=f"{overlay_col}:{group_col}")
     plt.tight_layout()
-    plt.savefig(outfile, dpi=200)
+    save_fig(plt.gcf(), outfile)
     plt.close()
 
 def collect_subset(df: pd.DataFrame, names: list[str]) -> pd.DataFrame:
@@ -1694,7 +1947,7 @@ def parse_list_map(spec: str) -> dict:
 def main():
     ap = argparse.ArgumentParser(description="Streamlined comparison: generations + loss variants.")
     ap.add_argument("path", nargs="?", default=None, help="Path to runs directory or .tar.gz archive (omit if using --xyz evaluation)")
-    ap.add_argument("--outdir", default="streamlined_analysis", help="Where to write outputs")
+    ap.add_argument("--outdir", default="results", help="Where to write outputs")
     ap.add_argument("--gens", default=None, help='Explicit generation groups, e.g. "0=runA,runB;7=runC;10=runD,runE"')
     ap.add_argument("--loss", default=None, help='Explicit loss groups, e.g. "MSE=run1;MSETW=run2;CA=run3;CATW=run4"')
     ap.add_argument("--prefer-gen", type=int, default=10, help="Preferred generation for loss-variant comparison")
@@ -1813,6 +2066,13 @@ def main():
                     variants_order=[v for v in ["MSE","MSETW","CA","CATW"] if v in lv_order],
                     elasticity_json_path=Path(args.elasticity_tensors) if args.elasticity_tensors else None,
                 )
+                # Faceted 2×2 panel chart (publication figure)
+                save_four_metric_faceted(
+                    loss_eval_df,
+                    outfile=outdir / "loss_variants_faceted.png",
+                    variants_order=[v for v in ["MSE","MSETW","CA","CATW"] if v in lv_order],
+                    elasticity_json_path=Path(args.elasticity_tensors) if args.elasticity_tensors else None,
+                )
             # Significance tests overall
             sig_overall = significance_tests_loss(loss_eval_df, outdir=outdir, scope_label="overall")
             if len(sig_overall):
@@ -1921,6 +2181,13 @@ def main():
                 save_four_metric_vertical_by_loss_variant(
                     loss_eval_df,
                     outfile=outdir / "loss_variants_four_metric_vertical.png",
+                    variants_order=[v for v in ["MSE","MSETW","CA","CATW"] if v in lv_order],
+                    elasticity_json_path=Path(args.elasticity_tensors) if args.elasticity_tensors else None,
+                )
+                # Faceted 2×2 panel chart (publication figure)
+                save_four_metric_faceted(
+                    loss_eval_df,
+                    outfile=outdir / "loss_variants_faceted.png",
                     variants_order=[v for v in ["MSE","MSETW","CA","CATW"] if v in lv_order],
                     elasticity_json_path=Path(args.elasticity_tensors) if args.elasticity_tensors else None,
                 )
@@ -2175,6 +2442,13 @@ def main():
                     save_four_metric_vertical_by_loss_variant(
                         loss_df,
                         outfile=outdir / "loss_variants_four_metric_vertical_from_runs.png",
+                        variants_order=[v for v in ["MSE","MSETW","CA","CATW"] if v in lv_order],
+                        elasticity_json_path=Path(args.elasticity_tensors) if args.elasticity_tensors else None,
+                    )
+                    # Faceted 2×2 panel chart (publication figure)
+                    save_four_metric_faceted(
+                        loss_df,
+                        outfile=outdir / "loss_variants_faceted_from_runs.png",
                         variants_order=[v for v in ["MSE","MSETW","CA","CATW"] if v in lv_order],
                         elasticity_json_path=Path(args.elasticity_tensors) if args.elasticity_tensors else None,
                     )

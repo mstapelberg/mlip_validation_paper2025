@@ -69,6 +69,19 @@ This ensures stress predictions are evaluated using the most relevant metric for
 - **`save_precomputed_results()`**: Saves evaluation results to JSON
 - **`load_precomputed_results()`**: Loads precomputed results from JSON
 
+### Config Type Analysis Script
+
+**`analyze_config_types.py`**: Recovers fine-grained config_type from the XYZ file and analyzes errors at both coarse (section) and fine (config_type) granularity.
+
+**Key Functions:**
+
+- **`build_config_type_map()`**: Reads XYZ to extract raw config_type per structure
+- **`enrich()`**: Joins config_type onto precomputed error DataFrames
+- **`summarize()`**: Computes mean/median/std/max by grouping column
+- **`plot_boxplots_by_config_type()`**: Box plots of error distributions per config_type
+- **`plot_heatmap()`**: Heatmap of mean error (config_type vs model variant)
+- **`plot_section_bars()`**: Grouped bar chart of mean error by section
+
 ### Plotting Functions
 
 - **`save_metric_panel()`**: 2×2 panel showing E, F, P, S metrics
@@ -119,24 +132,47 @@ When `--elasticity_tensors` is provided, the framework:
 - Shows DFT and experimental reference lines
 - Uses log scale for better visualization
 
-## Usage Examples
+## Quick Start (Precomputed Data)
 
-### Mode 1: Precomputed Data (Default - No Models Needed)
-
-This is the recommended mode for reviewers and reproduction. It uses precomputed evaluation results.
+The easiest way to use this framework is with the included `precomputed_data.json`. This requires **no model files** and reproduces all figures from the paper.
 
 ```bash
-# Basic usage (auto-detects precomputed_data.json if present)
-python streamlined_compare.py --outdir results/
+cd scripts/config_aware_testing
 
-# Explicit precomputed data path
+# Run with precomputed data (auto-detected if in current directory)
+python streamlined_compare.py
+
+# Or specify the path explicitly
+python streamlined_compare.py --precomputed-data precomputed_data.json
+```
+
+With elasticity data for C44 plots:
+
+```bash
 python streamlined_compare.py \
     --precomputed-data precomputed_data.json \
-    --outdir results/ \
     --elasticity_tensors allegro_elastic_tensors_summary.json
 ```
 
-**Outputs**: All plots and CSV files for analysis.
+This generates all CSV files and plots in the `results/` directory (the default `--outdir`).
+
+### How Auto-Detection Works
+
+When you run the script **without** `--precomputed-data` or `--xyz`, it automatically looks for `precomputed_data.json` in the current working directory. If found, it uses that file. This means:
+
+```bash
+# These are equivalent (when precomputed_data.json exists in cwd):
+python streamlined_compare.py --outdir results/
+python streamlined_compare.py --precomputed-data precomputed_data.json --outdir results/
+```
+
+---
+
+## Usage Modes
+
+### Mode 1: Precomputed Data (Recommended)
+
+Use this mode to reproduce results without model files. See [Quick Start](#quick-start-precomputed-data) above.
 
 ### Mode 2: Direct Model Evaluation (Requires Models)
 
@@ -242,16 +278,53 @@ This shows:
 - Unique grouping values (generations, variants, groups)
 - Statistical summaries of metrics
 
+## Analyzing Errors by Config Type
+
+The precomputed data stores a coarsened `section` label but the raw `config_type` (e.g. `vacancy_aa`, `surface_110`) is lost. The `analyze_config_types.py` script recovers fine-grained config_type from the original XYZ file, assigns each to a **physical group** (based on the underlying physics, not the `_aa` suffix), and produces faceted plots and summary tables.
+
+Phonon structures are excluded by default (large force outliers). Use `--no-exclude` to include everything.
+
+```bash
+python analyze_config_types.py \
+    --json precomputed_data.json \
+    --xyz ../../data/gen_10_data/exploit_q-97.5_rmax5.50_lmax1_layers1_mlp256_seed42_test.xyz \
+    --outdir results/config_analysis
+```
+
+This produces:
+- **Faceted bar plots** (one per metric): config_types grouped by physical group (Bulk, Surfaces, Point defects, NEB, etc.), bars per model variant
+- **Overview heatmaps** (one per model variant): all config_types as rows, all 4 metrics as columns, normalized color scale with annotated values
+- **Adversarial comparison** charts: ratio of _aa error to base error for each config_type
+- **Summary tables** (printed + CSV) at both physical_group and config_type granularity
+
+### Cascade Readiness Report
+
+To generate a compact text report suitable for sharing with another LLM for cascade readiness assessment:
+
+```bash
+python analyze_config_types.py --report-only --cascade-report
+```
+
+This produces `results/config_analysis/cascade_readiness_report.txt` — a structured summary of errors for cascade-relevant config_types (point defects, NEB, elastic, bulk, surfaces, liquids) with adversarial robustness ratios. Use `--report-only` to skip plot generation.
+
+### Output files
+
+CSVs:
+- `{gen,loss,loss_groups}_config_type_summary.csv`: Per-config_type mean/median/std/max
+- `{gen,loss,loss_groups}_physical_group_summary.csv`: Per-physical-group summary
+- `cascade_readiness_report.txt`: Compact text report for LLM consumption
+
 ## File Structure
 
 ```
 config_aware_testing/
 ├── streamlined_compare.py          # Main analysis script
 ├── inspect_precomputed_data.py     # Inspect precomputed data
+├── analyze_config_types.py         # Error analysis by config_type
 ├── precomputed_data.json           # Precomputed results (2-5 MB)
 ├── allegro_elastic_tensors_summary.json  # Elasticity data
 ├── results/                         # Output directory
-│   ├── *.csv                       # Per-structure metrics
+│   ├── *.csv                       # Per-structure metrics & config_type summaries
 │   ├── *.png                       # Generated plots
 └── README.md                        # This file
 ```
@@ -304,7 +377,9 @@ The elasticity tensor file should have this structure:
 
 ## Troubleshooting
 
-**Missing precomputed_data.json**: The script will attempt to load it if present in current directory. If evaluation is needed, use `--xyz` mode.
+**"Either provide --xyz dataset with evaluation or --precomputed-data for plot reproduction"**: The script couldn't find `precomputed_data.json` in the current directory. Either:
+- Run from the `config_aware_testing/` directory where `precomputed_data.json` lives, or
+- Pass `--precomputed-data /path/to/precomputed_data.json` explicitly
 
 **Model file not found**: Check that model paths in `MODELS_BY_*` dictionaries are correct.
 

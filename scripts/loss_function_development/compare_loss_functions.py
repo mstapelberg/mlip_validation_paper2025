@@ -65,6 +65,12 @@ from cache_predictions import (
     compute_errors_from_cache
 )
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig
+
+set_pub_style()
+
 
 # =============================================================================
 # Model Loading
@@ -464,7 +470,7 @@ def plot_error_distributions(results_dict: Dict[str, List],
         axes[idx].axis('off')
     
     plt.tight_layout()
-    plt.savefig(output_dir / 'error_distributions.png', dpi=150, bbox_inches='tight')
+    save_fig(plt.gcf(), output_dir / 'error_distributions')
     print(f"\n✓ Saved error distributions: {output_dir / 'error_distributions.png'}")
     plt.close()
 
@@ -527,7 +533,7 @@ def plot_defect_vs_bulk_comparison(summary_df: pd.DataFrame,
                    fontsize=10, fontweight='bold')
     
     plt.tight_layout()
-    plt.savefig(output_dir / 'defect_vs_bulk_comparison.png', dpi=150, bbox_inches='tight')
+    save_fig(plt.gcf(), output_dir / 'defect_vs_bulk_comparison')
     print(f"✓ Saved comparison: {output_dir / 'defect_vs_bulk_comparison.png'}")
     plt.close()
 

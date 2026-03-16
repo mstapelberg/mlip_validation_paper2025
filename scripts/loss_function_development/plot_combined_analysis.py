@@ -26,6 +26,11 @@ import matplotlib.gridspec as gridspec
 from pathlib import Path
 import argparse
 from scipy import stats
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig, TOL_BRIGHT, DOUBLE_COL, fig_size
+
+set_pub_style()
 
 
 def load_training_history(csv_path: str, val_weighted_sums_path: str = None) -> pd.DataFrame:
@@ -273,12 +278,12 @@ def plot_training_curves(training_df: pd.DataFrame, output_dir: Path):
     
     loss_types = ['MSE', 'RMSE', 'TailHuber', 'StratHuber', 'RMCE', 'RMQE']
     colors = {
-        'MSE': '#2A33C3',        # Blue
-        'RMSE': '#A35D00',        # Orange/Brown
-        'TailHuber': '#0B7285',   # Teal/Cyan
-        'StratHuber': '#8F2D56',  # Magenta/Pink
-        'RMCE': '#6E8B00',        # Green
-        'RMQE': '#4A5568'         # Dark gray-blue
+        'MSE': TOL_BRIGHT[0],        # blue
+        'RMSE': TOL_BRIGHT[1],       # red/coral
+        'TailHuber': TOL_BRIGHT[4],  # cyan
+        'StratHuber': TOL_BRIGHT[5], # purple
+        'RMCE': TOL_BRIGHT[2],       # green
+        'RMQE': TOL_BRIGHT[6]        # grey
     }
     
     # Determine x-axis column: use epoch if available, otherwise _step
@@ -534,7 +539,7 @@ def plot_training_curves(training_df: pd.DataFrame, output_dir: Path):
         ax.set_yscale('log')
     
     plt.tight_layout()
-    plt.savefig(output_dir / 'training_analysis.png', dpi=150, bbox_inches='tight')
+    save_fig(plt.gcf(), output_dir / 'training_analysis')
     print(f"✓ Saved training analysis: {output_dir / 'training_analysis.png'}")
     plt.close()
 
@@ -551,12 +556,12 @@ def plot_error_distributions(detailed_df: pd.DataFrame, output_dir: Path):
     
     loss_types = ['MSE', 'RMSE', 'TailHuber', 'StratHuber', 'RMCE', 'RMQE']
     colors = {
-        'MSE': '#2A33C3',        # Blue
-        'RMSE': '#A35D00',        # Orange/Brown
-        'TailHuber': '#0B7285',   # Teal/Cyan
-        'StratHuber': '#8F2D56',  # Magenta/Pink
-        'RMCE': '#6E8B00',        # Green
-        'RMQE': '#4A5568'         # Dark gray-blue
+        'MSE': TOL_BRIGHT[0],        # blue
+        'RMSE': TOL_BRIGHT[1],       # red/coral
+        'TailHuber': TOL_BRIGHT[4],  # cyan
+        'StratHuber': TOL_BRIGHT[5], # purple
+        'RMCE': TOL_BRIGHT[2],       # green
+        'RMQE': TOL_BRIGHT[6]        # grey
     }
     
     # 1. Mean errors
@@ -627,7 +632,7 @@ def plot_error_distributions(detailed_df: pd.DataFrame, output_dir: Path):
         ax.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
-    plt.savefig(output_dir / 'error_distributions.png', dpi=150, bbox_inches='tight')
+    save_fig(plt.gcf(), output_dir / 'error_distributions')
     print(f"✓ Saved error distributions: {output_dir / 'error_distributions.png'}")
     plt.close()
 
@@ -708,12 +713,12 @@ def create_publication_figure(ensemble_df: pd.DataFrame, detailed_df: pd.DataFra
     gs = gridspec.GridSpec(3, 3, figure=fig, hspace=0.3, wspace=0.3)
     
     colors = {
-        'MSE': '#2A33C3',        # Blue
-        'RMSE': '#A35D00',        # Orange/Brown
-        'TailHuber': '#0B7285',   # Teal/Cyan
-        'StratHuber': '#8F2D56',  # Magenta/Pink
-        'RMCE': '#6E8B00',        # Green
-        'RMQE': '#4A5568'         # Dark gray-blue
+        'MSE': TOL_BRIGHT[0],        # blue
+        'RMSE': TOL_BRIGHT[1],       # red/coral
+        'TailHuber': TOL_BRIGHT[4],  # cyan
+        'StratHuber': TOL_BRIGHT[5], # purple
+        'RMCE': TOL_BRIGHT[2],       # green
+        'RMQE': TOL_BRIGHT[6]        # grey
     }
     
     loss_types = ensemble_df['loss_type'].values
@@ -834,7 +839,7 @@ def create_publication_figure(ensemble_df: pd.DataFrame, detailed_df: pd.DataFra
     
     ax6.set_title('F. Summary Statistics', fontsize=12, fontweight='bold', pad=20)
     
-    plt.savefig(output_dir / 'publication_figure.png', dpi=300, bbox_inches='tight')
+    save_fig(plt.gcf(), output_dir / 'publication_figure')
     print(f"✓ Saved publication figure: {output_dir / 'publication_figure.png'}")
     plt.close()
 

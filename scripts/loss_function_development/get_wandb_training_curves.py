@@ -29,6 +29,11 @@ import pandas as pd
 import wandb
 import argparse
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig
+
+set_pub_style()
 
 
 def get_run_history(api, entity_project: str, run_name: str, samples: int = None) -> pd.DataFrame:
@@ -177,7 +182,7 @@ def plot_training_curves(histories_dict: dict, output_path: str,
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    save_fig(plt.gcf(), output_path)
     print(f"\n✓ Saved training curves: {output_path}")
     plt.close()
 

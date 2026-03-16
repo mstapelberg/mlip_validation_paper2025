@@ -1,23 +1,19 @@
 import os
 import re
+import sys
 import json
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from pathlib import Path
 from ase.io import read
 
-# Publication quality settings
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Helvetica', 'Arial', 'DejaVu Sans']
-plt.rcParams['font.size'] = 10
-plt.rcParams['axes.linewidth'] = 1.2
-plt.rcParams['xtick.major.width'] = 1.2
-plt.rcParams['ytick.major.width'] = 1.2
-plt.rcParams['xtick.major.size'] = 4
-plt.rcParams['ytick.major.size'] = 4
+# Shared publication style
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig, TOL_BRIGHT, DOUBLE_COL, fig_size
 
-# Color scheme
-COLORS = ['#2A33C3', '#A35D00', '#0B7285', '#8F2D56', '#6E8B00']
+set_pub_style()
+COLORS = TOL_BRIGHT
 
 def save_data_to_json(data, filename):
     """Save convergence data to JSON file."""
@@ -188,7 +184,7 @@ def create_publication_plot(kspacing_data, encut_data, chosen_kspacing=(0.12, 0.
     enc_stresses = [x[2] for x in encut_data]
     
     # Create figure with 2x2 subplots
-    fig = plt.figure(figsize=(12, 9))
+    fig = plt.figure(figsize=fig_size(DOUBLE_COL, 0.75))
     gs = GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.3)
     
     # K-spacing energy convergence
@@ -211,7 +207,7 @@ def create_publication_plot(kspacing_data, encut_data, chosen_kspacing=(0.12, 0.
                 ax1.axhline(y=1, color='gray', linestyle='--', linewidth=1, alpha=0.7, label='1 meV/atom threshold')
                 ax1.set_xlabel('K-spacing (Å⁻¹)', fontweight='bold')
                 ax1.set_ylabel('ΔE (meV/atom)', fontweight='bold')
-                ax1.set_title('(a) K-spacing Energy Convergence', fontweight='bold', loc='left')
+                ax1.set_title('(a)', fontweight='bold', loc='left')
                 ax1.grid(True, alpha=0.3, linestyle=':')
                 ax1.legend(frameon=True, fancybox=True, shadow=True)
     
@@ -228,7 +224,7 @@ def create_publication_plot(kspacing_data, encut_data, chosen_kspacing=(0.12, 0.
                        label=f'Chosen: {chosen_kspacing[0]}-{chosen_kspacing[1]} Å⁻¹')
             ax2.set_xlabel('K-spacing (Å⁻¹)', fontweight='bold')
             ax2.set_ylabel('||Stress|| (GPa)', fontweight='bold')
-            ax2.set_title('(b) K-spacing Stress Convergence', fontweight='bold', loc='left')
+            ax2.set_title('(b)', fontweight='bold', loc='left')
             ax2.grid(True, alpha=0.3, linestyle=':')
             ax2.legend(frameon=True, fancybox=True, shadow=True)
     
@@ -252,7 +248,7 @@ def create_publication_plot(kspacing_data, encut_data, chosen_kspacing=(0.12, 0.
                 ax3.axhline(y=1, color='gray', linestyle='--', linewidth=1, alpha=0.7, label='1 meV/atom threshold')
                 ax3.set_xlabel('ENCUT (eV)', fontweight='bold')
                 ax3.set_ylabel('ΔE (meV/atom)', fontweight='bold')
-                ax3.set_title('(c) ENCUT Energy Convergence', fontweight='bold', loc='left')
+                ax3.set_title('(c)', fontweight='bold', loc='left')
                 ax3.grid(True, alpha=0.3, linestyle=':')
                 ax3.legend(frameon=True, fancybox=True, shadow=True)
     
@@ -269,13 +265,11 @@ def create_publication_plot(kspacing_data, encut_data, chosen_kspacing=(0.12, 0.
                        alpha=0.7, label=f'Chosen: {chosen_encut} eV')
             ax4.set_xlabel('ENCUT (eV)', fontweight='bold')
             ax4.set_ylabel('||Stress|| (GPa)', fontweight='bold')
-            #ax4.set_title('(d) ENCUT Stress Convergence', fontweight='bold', loc='left')
+            ax4.set_title('(d)', fontweight='bold', loc='left')
             ax4.grid(True, alpha=0.3, linestyle=':')
             ax4.legend(frameon=True, fancybox=True, shadow=True)
     
-    # Add overall title
-    fig.suptitle('DFT Convergence Study: K-spacing and ENCUT', 
-                fontsize=14, fontweight='bold', y=0.995)
+    # No suptitle — cleaner for publication (describe in caption)
     
     return fig
 
@@ -346,16 +340,9 @@ def main():
     print("="*60)
     fig = create_publication_plot(ksp_data, encut_data)
     
-    # Save plot
-    output_path = os.path.join(script_dir, 'convergence_study_publication.png')
-    fig.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
-    print(f"\nPlot saved to: {output_path}")
-    
-    # Also save as PDF for publication
-    output_pdf = os.path.join(script_dir, 'convergence_study_publication.pdf')
-    fig.savefig(output_pdf, bbox_inches='tight', facecolor='white')
-    print(f"PDF saved to: {output_pdf}")
-    
+    # Save plot (PNG + PDF)
+    output_stem = os.path.join(script_dir, 'convergence_study_publication')
+    save_fig(fig, output_stem)
     plt.close()
 
 if __name__ == "__main__":

@@ -35,6 +35,11 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import argparse
 import re
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig
+
+set_pub_style()
 
 
 def extract_loss_type(model_name: str) -> str:
@@ -94,16 +99,17 @@ def plot_ensemble_comparison(grouped_df: pd.DataFrame, output_dir: Path):
     x = np.arange(n_types)
     width = 0.35
     
-    # Define colors for each loss type
+    # Define colors for each loss type (Tol Bright, colorblind-safe)
+    from plotting_utils import TOL_BRIGHT
     color_map = {
-        'MSE': '#2A33C3',        # Blue
-        'MAE': '#A35D00',         # Orange/Brown
-        'RMSE': '#A35D00',        # Orange/Brown
-        'RMCE': '#6E8B00',        # Green
-        'RMQE': '#E2E8F0',        # Slate
-        'TailHuber': '#0B7285',   # Teal/Cyan
-        'StratifiedHuber': '#8F2D56',  # Magenta/Pink
-        'StratHuber': '#8F2D56',  # Magenta/Pink
+        'MSE': TOL_BRIGHT[0],            # blue
+        'MAE': TOL_BRIGHT[1],            # red/coral
+        'RMSE': TOL_BRIGHT[1],           # red/coral
+        'RMCE': TOL_BRIGHT[2],           # green
+        'RMQE': TOL_BRIGHT[6],           # grey
+        'TailHuber': TOL_BRIGHT[4],      # cyan
+        'StratifiedHuber': TOL_BRIGHT[5],# purple
+        'StratHuber': TOL_BRIGHT[5],     # purple
     }
     colors = [color_map.get(lt, 'gray') for lt in loss_types]
     
@@ -189,7 +195,7 @@ def plot_ensemble_comparison(grouped_df: pd.DataFrame, output_dir: Path):
                    f'{height:.3f}', ha='center', va='bottom', fontsize=9)
     
     plt.tight_layout()
-    plt.savefig(output_dir / 'ensemble_comparison.png', dpi=150, bbox_inches='tight')
+    save_fig(plt.gcf(), output_dir / 'ensemble_comparison')
     print(f"✓ Saved ensemble comparison: {output_dir / 'ensemble_comparison.png'}")
     plt.close()
 
@@ -224,7 +230,7 @@ def plot_variance_comparison(grouped_df: pd.DataFrame, output_dir: Path):
     ax.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
-    plt.savefig(output_dir / 'reproducibility_comparison.png', dpi=150, bbox_inches='tight')
+    save_fig(plt.gcf(), output_dir / 'reproducibility_comparison')
     print(f"✓ Saved reproducibility comparison: {output_dir / 'reproducibility_comparison.png'}")
     plt.close()
 

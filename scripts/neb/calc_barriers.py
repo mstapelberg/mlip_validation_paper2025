@@ -5,10 +5,18 @@ from ase.filters import FrechetCellFilter
 from ase.optimize import FIRE
 from ase.mep import DyNEB 
 
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
 import os
+from pathlib import Path
+
+# Shared publication style
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig
+
+set_pub_style()
 
 
 
@@ -173,7 +181,7 @@ for folder in folders:
     plt.plot(start_energies, label='mlip start')
     plt.plot(end_energies, label='mlip end')
     plt.legend()
-    plt.savefig(os.path.join(results_path, 'mlip_vac_vasp_vac_energies.png'))
+    save_fig(plt.gcf(), os.path.join(results_path, 'mlip_vac_vasp_vac_energies'))
 
     # Run the NEB 
 
@@ -250,7 +258,7 @@ for folder in folders:
     plt.plot(neb_energies, label='MLIP')
     plt.plot(vasp_energies, label='VASP')
     plt.legend()
-    plt.savefig(os.path.join(results_path, 'mlip_vasp_neb_energies.png'))
+    save_fig(plt.gcf(), os.path.join(results_path, 'mlip_vasp_neb_energies'))
 
 
 

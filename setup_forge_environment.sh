@@ -20,6 +20,7 @@ echo "  - FORGE (feature/config-aware-stress branch)"
 echo "  - NequIP (any version - will install latest)"
 echo "  - Allegro (any version - will install latest)"
 echo "  - WandB"
+echo "  - SAW plotting deps (mpltern; numpy/pandas/matplotlib from conda env)"
 echo ""
 echo "Note: For Tesla V100 (compute capability 7.0), consider using CUDA 11.8 (cu118) or PyTorch 2.8.0+"
 echo ""
@@ -60,6 +61,10 @@ fi
 echo "Installing WandB..."
 pip install wandb
 
+# Install SAW plotting extras used by scripts/sawbench-plots/plot_paper_figures.py
+echo "Installing SAW plotting dependencies..."
+pip install mpltern
+
 # Install NequIP (any version - latest from PyPI)
 echo "Installing NequIP (latest version)..."
 pip install nequip
@@ -99,6 +104,7 @@ echo "  python -c \"import forge; print('FORGE imported successfully')\""
 echo "  python -c \"import nequip; print('NequIP imported successfully')\""
 echo "  python -c \"import allegro; print('Allegro imported successfully')\""
 echo "  python -c \"import wandb; print(f'WandB: {wandb.__version__}')\""
+echo "  python -c \"import numpy, pandas, matplotlib, mpltern; print('Plotting stack imported successfully')\""
 echo ""
 echo "Usage:"
 echo "  ./setup_forge_environment.sh [CUDA_VERSION] [PYTORCH_VERSION]"

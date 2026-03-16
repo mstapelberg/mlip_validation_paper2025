@@ -15,22 +15,19 @@ Usage:
       --save map_plus_neb.png
 """
 
-import ast, csv, argparse, numpy as np, matplotlib.pyplot as plt
+import ast, csv, argparse, sys, numpy as np, matplotlib.pyplot as plt
 import os, json
+from pathlib import Path
 from matplotlib import gridspec
 from matplotlib.patches import Rectangle, ConnectionPatch, Polygon
 from typing import Dict, List, Tuple
 from sklearn.decomposition import PCA
 
-# Set global font and font sizes - use Helvetica and increase all by 2 points
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Helvetica', 'Arial', 'DejaVu Sans']
-plt.rcParams['font.size'] = 14  # Default is usually 10
-plt.rcParams['axes.titlesize'] = 16  # Default is usually 12
-plt.rcParams['axes.labelsize'] = 18  # Increased by 2
-plt.rcParams['xtick.labelsize'] = 16  # Increased by 2
-plt.rcParams['ytick.labelsize'] = 16  # Increased by 2
-plt.rcParams['legend.fontsize'] = 16  # Increased from 12 to 14 (2 points bigger)
+# Shared publication style
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig, TOL_BRIGHT, COLORS as _COLORS, DOUBLE_COL, fig_size
+
+set_pub_style(base_fontsize=10)
 
 # Try to import adjustText for smart label positioning
 try:
@@ -46,11 +43,11 @@ from forge.analysis.composition import CompositionAnalyzer, analyze_composition_
 TARGET_ELEMENTS = ['V','Cr','Ti','W','Zr']
 PSEUDOCOUNT = 1e-9
 
-# ---------------------- Color scheme ----------------------
-COLOR_BLUE = '#2A33C3'
-COLOR_ORANGE = '#A35D00'
-COLOR_RED = '#8F2D56'
-COLOR_GREEN = '#6E8B00'
+# ---------------------- Color scheme (from shared palette) ----------------------
+COLOR_BLUE = _COLORS["blue"]
+COLOR_ORANGE = _COLORS["red"]      # coral/red replaces old brown-orange
+COLOR_RED = _COLORS["purple"]      # purple replaces old magenta
+COLOR_GREEN = _COLORS["green"]
 
 def parse_formula_to_counts(formula: str) -> Dict[str, int]:
     from collections import Counter
@@ -421,6 +418,20 @@ def pretty_comp_label(key: str) -> str:
         return f"{base}: {a} → {b}"
     return key.replace('_', ': ')
 
+_SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+
+def format_formula_subscript(key: str) -> str:
+    """Convert 'Cr2Ti2V120W2Zr2_98_to_118' → 'V₁₂₀Cr₂Ti₂W₂Zr₂' (V first, unicode subscripts)."""
+    base = key.split('_')[0]  # strip vacancy indices
+    counts = parse_formula_to_counts(base)
+    # V first, then alphabetical
+    elements = sorted(counts.keys(), key=lambda e: (e != 'V', e))
+    parts = []
+    for el in elements:
+        n = counts[el]
+        parts.append(el if n == 1 else el + str(n).translate(_SUB))
+    return ''.join(parts)
+
 # --------------------------- Parity panel ---------------------------
 def parity_panel(ax, vasp: List[float], gen0: List[float], gen10: List[float], labels: List[int]):
     v = np.array(vasp); g0 = np.array(gen0); g10 = np.array(gen10)
@@ -480,6 +491,51 @@ def parity_panel(ax, vasp: List[float], gen0: List[float], gen10: List[float], l
     
     ax.legend(frameon=False, loc='upper left')
 
+
+def error_comparison_panel(ax, vasp_bars, gen0_bars, gen10_bars, labels,
+                           comp_labels=None):
+    """Horizontal grouped bar chart of |barrier error| per composition."""
+    v = np.array(vasp_bars)
+    g0 = np.array(gen0_bars)
+    g10 = np.array(gen10_bars)
+    err0 = np.abs(g0 - v)
+    err10 = np.abs(g10 - v)
+
+    rmse0 = float(np.sqrt(np.mean((g0 - v) ** 2)))
+    rmse10 = float(np.sqrt(np.mean((g10 - v) ** 2)))
+
+    h = 0.40  # bar thickness — don't change
+    group_spacing = 1.05  # distance between group centres (>2*h to leave gap between groups)
+    y = np.arange(len(labels)) * group_spacing
+    offset = h / 2  # no gap within a pair — bars touch
+
+    ax.barh(y + offset, err0, h, color=COLOR_ORANGE, edgecolor='black',
+            linewidth=0.5, label=f'Gen 0  (RMSE = {rmse0:.2f} eV)', zorder=3)
+    ax.barh(y - offset, err10, h, color=COLOR_BLUE, edgecolor='black',
+            linewidth=0.5, label=f'Gen 10 (RMSE = {rmse10:.2f} eV)', zorder=3)
+
+    # value labels to the right of each bar
+    for yi, e0, e10 in zip(y, err0, err10):
+        ax.text(e0 + 0.01, yi + offset, f'{e0:.2f}', ha='left', va='center',
+                fontsize=6.5, fontweight='bold')
+        ax.text(e10 + 0.01, yi - offset, f'{e10:.2f}', ha='left', va='center',
+                fontsize=6.5, fontweight='bold')
+
+    tick_labels = [f'#{n}' for n in labels]
+    ax.set_yticks(y)
+    ax.set_yticklabels(tick_labels, fontsize=8, fontweight='bold')
+    ax.set_xlabel('|Barrier error| (eV)', fontweight='bold', fontsize=9)
+    ax.invert_yaxis()  # #1 at top
+    # Extend y-limit to create blank space below #6 for the legend
+    ax.set_ylim(y[-1] + 1.8, y[0] - 0.8)
+    ax.grid(True, axis='x', linestyle=':', alpha=0.5, zorder=0)
+    ax.legend(frameon=True, fancybox=False, edgecolor='black', fontsize=7,
+              loc='lower center')
+    # pad right for labels
+    xhi = max(err0.max(), err10.max())
+    ax.set_xlim(0, xhi * 1.3)
+
+
 # --------------------------- Main figure ---------------------------
 def plot_map_and_neb(summary_csv: str,
                      transform: str = 'ilr',
@@ -519,152 +575,162 @@ def plot_map_and_neb(summary_csv: str,
     all_for_map = list(dataset.keys()) + base_formulas
     coords, var, pca, preproc_fn, tname = embed_pca_2d(all_for_map, transform=transform)
 
-    # 4) Grid (parity spans BOTH columns at FULL width)
+    # 4) Grid — new layout: top row = [map | error], bottom = 2×3 NEB grid
     n = len(ordered_keys)
-    left_width_in = n * row_height * map_scale  # Scale map size
-    fig_width_in = left_width_in * (1.0 + right_col_ratio)
-    total_height_in = (n * row_height + (parity_height if include_parity else 0.0)) * height_scale
+    from matplotlib.ticker import FormatStrFormatter
+
+    top_h = 4.0                              # inches for map + error row
+    neb_rows = int(np.ceil(n / 3))           # 2 rows for 6 compositions
+    neb_row_h = 2.2                          # height per NEB row
+    neb_block_h = neb_rows * neb_row_h
+    total_height_in = top_h + neb_block_h
+    fig_width_in = DOUBLE_COL                # 7.0 inches
+
     fig = plt.figure(figsize=(fig_width_in, total_height_in))
-    
-    if include_parity:
-        # Use nested GridSpec: outer has 2 rows (map+NEBs, then parity)
-        outer_gs = gridspec.GridSpec(nrows=2, ncols=1, 
-                                      height_ratios=[n * row_height, parity_height],
-                                      hspace=0.15)
-        # Inner grid for map + NEBs
-        gs = gridspec.GridSpecFromSubplotSpec(nrows=n, ncols=2,
-                                               subplot_spec=outer_gs[0],
-                                               width_ratios=[1.0, right_col_ratio],
-                                               height_ratios=[1.0]*n,
-                                               wspace=0.28, hspace=0.75)
-        # Parity will use outer_gs[1] to span full width
-    else:
-        # No parity: use simple GridSpec
-        gs = gridspec.GridSpec(
-            nrows=n, ncols=2,
-            width_ratios=[1.0, right_col_ratio],
-            height_ratios=[1.0]*n, wspace=0.28, hspace=0.75
-        )
 
-    # ----- Left: composition map (span NEB rows) -----
-    axL = plt.subplot(gs[:, 0])
+    outer_gs = gridspec.GridSpec(
+        nrows=2, ncols=1,
+        height_ratios=[top_h, neb_block_h],
+        hspace=0.38, figure=fig,
+    )
 
-    # Polytope overlay; keep projected points for zoom control
+    # --- Top row: map (left) + error comparison (right) ---
+    top_gs = gridspec.GridSpecFromSubplotSpec(
+        nrows=1, ncols=2, subplot_spec=outer_gs[0],
+        width_ratios=[1.0, 1.0], wspace=0.35,
+    )
+
+    # --- Bottom: 2×3 NEB grid ---
+    neb_gs = gridspec.GridSpecFromSubplotSpec(
+        nrows=neb_rows, ncols=3, subplot_spec=outer_gs[1],
+        wspace=0.35, hspace=0.45,
+    )
+
+    # ============================================================
+    # MAP PANEL (top-left)
+    # ============================================================
+    axL = fig.add_subplot(top_gs[0, 0])
+
     Z_poly = None
     if overlay_polytope:
         Z_poly = overlay_manifold(axL, pca, preproc_fn, facecolor=COLOR_GREEN, alpha=0.10)
-        # Add text label for feasible region above the top center
         if len(Z_poly) > 0:
             cx = Z_poly[:, 0].mean()
             cy_top = Z_poly[:, 1].max()
-            axL.text(cx, cy_top + 0.8, 'Feasible region', ha='center', va='bottom',
-                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2, fontsize=18)
+            axL.text(cx, cy_top + 0.5, 'Feasible region', ha='center', va='bottom',
+                    color=COLOR_GREEN, fontweight='bold', alpha=0.9, zorder=10, fontsize=9,
+                    bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.7))
     else:
-        # still compute Z_poly if zoom='manifold'
         if zoom == 'manifold':
             Z_poly = pca.transform(preproc_fn(sample_feasible_region(4000)))
 
-    # dataset background
     if dataset:
         ds = [f for f in dataset.keys() if f in coords]
         axL.scatter([coords[f][0] for f in ds], [coords[f][1] for f in ds],
-                    c='#CFCFCF', s=30, alpha=0.75, edgecolors='none', label='Dataset (≤ Gen 10)', zorder=2)
+                    c='#CFCFCF', s=30, alpha=0.75, edgecolors='none', zorder=2)
 
-    # SIMPLE points + numbers
+    # Fan-out offsets (in points) so clustered labels don't overlap
+    _label_offsets = [
+        (0, 22),     # #1: up
+        (22, 12),    # #2: up-right
+        (18, -5),    # #3: right (isolated point, minimal offset)
+        (-22, 12),   # #4: up-left
+        (-22, -12),  # #5: down-left
+        (0, -22),    # #6: down
+    ]
     simple_xy = []
     for idx, k in enumerate(ordered_keys, start=1):
         base = k.split('_')[0]; x, y = coords[base]
-        simple_xy.append([x,y])
-        axL.scatter([x],[y], c=COLOR_RED, s=64, alpha=0.92, edgecolors='black', linewidths=0.6, zorder=3)
-        axL.text(x, y, str(idx), ha='center', va='center', fontsize=12.2,
-                 bbox=dict(boxstyle='circle,pad=0.22', fc='white', ec=COLOR_RED, lw=1.0, alpha=0.95),
-                 color='black', zorder=4)
+        simple_xy.append([x, y])
+        axL.scatter([x], [y], c=COLOR_RED, s=50, alpha=0.92,
+                    edgecolors='black', linewidths=0.6, zorder=3)
+        off = _label_offsets[idx - 1] if idx <= len(_label_offsets) else (0, 18)
+        axL.annotate(
+            str(idx), xy=(x, y), xytext=off,
+            textcoords='offset points', ha='center', va='center',
+            fontsize=9, fontweight='bold', color='black', zorder=5,
+            bbox=dict(boxstyle='circle,pad=0.25', fc='white', ec=COLOR_RED,
+                      lw=1.2, alpha=0.95),
+            arrowprops=dict(arrowstyle='-', color=COLOR_RED, lw=0.8,
+                            shrinkA=0, shrinkB=5),
+        )
     simple_xy = np.asarray(simple_xy)
 
-    axL.set_title(f'Composition map ({tname}, var≈{100*var:.1f}%)', fontweight='bold')
-    axL.set_xlabel('PC 1', fontweight='bold')
-    axL.set_ylabel('PC 2', fontweight='bold')
-    axL.tick_params()
+    axL.set_xlabel('PC 1', fontweight='bold', fontsize=9)
+    axL.set_ylabel('PC 2', fontweight='bold', fontsize=9)
+    axL.tick_params(labelsize=8)
     axL.grid(alpha=0.25, linestyle=':', zorder=1)
-    axL.legend(frameon=False, loc='upper center', ncol=2)
-    axL.set_aspect('equal', adjustable='box')
+    axL.set_aspect('equal', adjustable='datalim')
+    axL.set_title('(a)', fontweight='bold', fontsize=10, loc='left')
 
-    # ---- Zoom control ----
-    if zoom == 'smart' and len(simple_xy):
-        (xl, xh), (yl, yh) = smart_zoom_limits(simple_xy, Z_poly=Z_poly,
-                                               pad_frac=smart_pad_frac,
-                                               min_span=smart_min_span,
-                                               clamp_to_poly=smart_clamp_to_poly)
-        axL.set_xlim(xl, xh); axL.set_ylim(yl, yh)
-    elif zoom == 'manifold' and Z_poly is not None and len(simple_xy):
-        (xl, xh), (yl, yh) = manifold_zoom_limits(
-            Z_poly, simple_xy, buffer_left_bottom=zoom_buffer, pad_right=1.0, pad_top=1.0
-        )
-        axL.set_xlim(xl, xh); axL.set_ylim(yl, yh)
-    elif zoom == 'tight' and len(simple_xy):
-        # center on SIMPLE with modest padding
-        x, y = simple_xy[:,0], simple_xy[:,1]
-        cx, cy = x.mean(), y.mean()
-        span = max(x.max()-x.min(), y.max()-y.min(), 3.0)
-        pad = 0.45*span
-        axL.set_xlim(cx-span/2-pad, cx+span/2+pad)
-        axL.set_ylim(cy-span/2-pad, cy+span/2+pad)
-    elif zoom == 'dataset' and dataset:
-        XY = np.array([coords[f] for f in dataset.keys() if f in coords])
-        xl, xh = np.percentile(XY[:,0], [2.0, 98.0]); yl, yh = np.percentile(XY[:,1], [2.0, 98.0])
-        axL.set_xlim(xl-0.1*(xh-xl), xh+0.1*(xh-xl))
-        axL.set_ylim(yl-0.1*(yh-yl), yh+0.1*(yh-yl))
-    # 'none' → leave autoscale
-    
-    # Set fixed x-range to -10, 15 as requested
-    axL.set_xlim(-10, 15)
+    # Auto-scale to show all points + feasible region
+    if Z_poly is not None and len(simple_xy):
+        all_pts = np.vstack([simple_xy, Z_poly])
+    elif len(simple_xy):
+        all_pts = simple_xy
+    else:
+        all_pts = None
+    if all_pts is not None:
+        xpad = (all_pts[:, 0].max() - all_pts[:, 0].min()) * 0.15 + 1.5
+        ypad = (all_pts[:, 1].max() - all_pts[:, 1].min()) * 0.15 + 1.5
+        axL.set_xlim(all_pts[:, 0].min() - xpad, all_pts[:, 0].max() + xpad)
+        axL.set_ylim(all_pts[:, 1].min() - ypad, all_pts[:, 1].max() + ypad)
 
-    # ----- Add inset zoom for clustered points -----
-    # Inset in bottom-right, adjusted to avoid overlap with feasible region and right edge
-    dataset_list = [f for f in dataset.keys() if f in coords] if dataset else []
-    add_inset_zoom(axL, ordered_keys, coords, 
-                   indices_to_zoom=[1, 2, 4, 5, 6],
-                   inset_bounds=(0.50, 0.02, 0.48, 0.48),
-                   zoom_padding=0.5,
-                   dataset_formulas=dataset_list)
-
-    # ----- Right: stacked NEB trajectories -----
-    from matplotlib.ticker import FormatStrFormatter
-    vasp_bars, gen0_bars, gen10_bars, labels_num = [], [], [], []
+    # ============================================================
+    # NEB PANELS (bottom 2×3 grid)
+    # ============================================================
+    vasp_bars, gen0_bars, gen10_bars, labels_num, comp_labels = [], [], [], [], []
+    first_neb_ax = None
     for r, comp_key in enumerate(ordered_keys):
-        ax = plt.subplot(gs[r, 1])
-        vasp = neb[comp_key]['vasp']; g0 = neb[comp_key]['mlip_gen0']; g10 = neb[comp_key]['mlip_gen10']
-        x = np.arange(len(vasp))
-        ax.plot(x, vasp, '--', c='k', lw=1.4, label='VASP')
-        ax.plot(x, g0, '-', c=COLOR_ORANGE, lw=1.5, label='MLIP Gen0')
-        ax.plot(x, g10, '-', c=COLOR_BLUE, lw=1.5, label='MLIP Gen10')
-        ax.set_title(f"#{r+1}  {pretty_comp_label(comp_key)}", loc='left', fontweight='bold')
-        ax.set_ylabel('ΔE (eV)', fontweight='bold')
-        ax.tick_params()
-        # Format y-axis to 2 decimal places
-        ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-        if r == n-1: 
-            ax.set_xlabel('Image', fontweight='bold')
-        else: 
-            ax.tick_params(labelbottom=False)
+        row_idx, col_idx = divmod(r, 3)
+        ax = fig.add_subplot(neb_gs[row_idx, col_idx])
         if r == 0:
-            # Place legend horizontally above the first plot with more clearance
-            ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.18), ncol=3, 
-                     frameon=False)
+            first_neb_ax = ax
+        vasp = neb[comp_key]['vasp']
+        g0 = neb[comp_key]['mlip_gen0']
+        g10 = neb[comp_key]['mlip_gen10']
+        ximg = np.arange(len(vasp))
+        ax.plot(ximg, vasp, '--', c='k', lw=1.4, label='VASP')
+        ax.plot(ximg, g0, '-', c=COLOR_ORANGE, lw=1.5, label='MLIP Gen 0')
+        ax.plot(ximg, g10, '-', c=COLOR_BLUE, lw=1.5, label='MLIP Gen 10')
+        formula = format_formula_subscript(comp_key)
+        ax.set_title(f"#{r+1}  {formula}", loc='left', fontweight='bold',
+                     fontsize=8, pad=3)
+        ax.set_ylabel('ΔE (eV)', fontsize=8)
+        ax.tick_params(labelsize=7)
+        ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+        # Only show x-label on bottom row
+        if row_idx == neb_rows - 1:
+            ax.set_xlabel('Image', fontsize=8)
+        else:
+            ax.tick_params(labelbottom=False)
         vasp_bars.append(neb[comp_key]['bar_vasp'])
         gen0_bars.append(neb[comp_key]['bar_gen0'])
         gen10_bars.append(neb[comp_key]['bar_gen10'])
-        labels_num.append(r+1)
+        labels_num.append(r + 1)
+        comp_labels.append(formula)
 
-    # ----- Parity: now SPANS FULL FIGURE WIDTH -----
+    # Shared NEB legend — horizontal row above the 2×3 grid, with (c) label
+    if first_neb_ax is not None:
+        handles, leg_labels = first_neb_ax.get_legend_handles_labels()
+        fig.legend(handles, leg_labels, loc='lower center',
+                   bbox_to_anchor=(0.55, 0.465), ncol=3,
+                   frameon=False, fontsize=8)
+        fig.text(0.06, 0.475, '(c)', fontweight='bold', fontsize=10,
+                 va='center', ha='left')
+
+    # ============================================================
+    # ERROR COMPARISON PANEL (top-right)
+    # ============================================================
     if include_parity:
-        axP = plt.subplot(outer_gs[1])  # uses full-width outer grid
-        parity_panel(axP, vasp_bars, gen0_bars, gen10_bars, labels_num)
+        axE = fig.add_subplot(top_gs[0, 1])
+        axE.set_title('(b)', fontweight='bold', fontsize=10, loc='left')
+        error_comparison_panel(axE, vasp_bars, gen0_bars, gen10_bars,
+                               labels_num, comp_labels=None)
 
     fig.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Saved figure to: {save_path}")
+        save_fig(fig, save_path)
     return fig
 
 # --------------------------- Individual panels ---------------------------
@@ -695,19 +761,17 @@ def plot_map_only(summary_csv: str,
     coords, var, pca, preproc_fn, tname = embed_pca_2d(all_for_map, transform=transform)
 
     n = len(ordered_keys)
-    side_in = n * row_height
-    fig = plt.figure(figsize=(side_in, side_in))
+    fig = plt.figure(figsize=fig_size(DOUBLE_COL, 1.0))
     axL = fig.add_subplot(111)
 
     Z_poly = None
     if overlay_polytope:
         Z_poly = overlay_manifold(axL, pca, preproc_fn, facecolor=COLOR_GREEN, alpha=0.07)
-        # Add text label for feasible region above the top center
         if len(Z_poly) > 0:
             cx = Z_poly[:, 0].mean()
             cy_top = Z_poly[:, 1].max()
-            axL.text(cx, cy_top + 0.8, 'Feasible region', ha='center', va='bottom',
-                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2, fontsize=18)
+            axL.text(cx, cy_top + 0.5, 'Feasible region', ha='center', va='bottom',
+                    color=COLOR_GREEN, fontweight='bold', alpha=0.8, zorder=2, fontsize=9)
     else:
         if zoom == 'manifold':
             Z_poly = pca.transform(preproc_fn(sample_feasible_region(4000)))
@@ -720,60 +784,38 @@ def plot_map_only(summary_csv: str,
     simple_xy = []
     for idx, k in enumerate(ordered_keys, start=1):
         base = k.split('_')[0]; x, y = coords[base]
-        simple_xy.append([x,y])
-        axL.scatter([x],[y], c=COLOR_RED, s=64, alpha=0.92, edgecolors='black', linewidths=0.6, zorder=3)
-        axL.text(x, y, str(idx), ha='center', va='center', fontsize=12.2,
-                 bbox=dict(boxstyle='circle,pad=0.22', fc='white', ec=COLOR_RED, lw=1.0, alpha=0.95),
-                 color='black', zorder=4)
+        simple_xy.append([x, y])
+        axL.scatter([x], [y], c=COLOR_RED, s=80, alpha=0.92,
+                    edgecolors='black', linewidths=0.6, zorder=3)
+        axL.text(x, y, str(idx), ha='center', va='center', fontsize=9,
+                 bbox=dict(boxstyle='circle,pad=0.25', fc='white', ec=COLOR_RED,
+                           lw=1.2, alpha=0.95),
+                 color='black', fontweight='bold', zorder=4)
     simple_xy = np.asarray(simple_xy)
 
-    axL.set_title(f'Composition map ({tname}, var≈{100*var:.1f}%)', fontweight='bold')
-    axL.set_xlabel('PC 1', fontweight='bold')
-    axL.set_ylabel('PC 2', fontweight='bold')
-    axL.tick_params()
+    axL.set_xlabel('PC 1', fontweight='bold', fontsize=9)
+    axL.set_ylabel('PC 2', fontweight='bold', fontsize=9)
+    axL.tick_params(labelsize=8)
     axL.grid(alpha=0.25, linestyle=':', zorder=1)
-    axL.legend(frameon=False, loc='upper center', ncol=2)
+    axL.legend(frameon=False, loc='upper center', ncol=2, fontsize=7)
     axL.set_aspect('equal', adjustable='box')
 
-    if zoom == 'smart' and len(simple_xy):
-        (xl, xh), (yl, yh) = smart_zoom_limits(simple_xy, Z_poly=Z_poly,
-                                               pad_frac=smart_pad_frac,
-                                               min_span=smart_min_span,
-                                               clamp_to_poly=smart_clamp_to_poly)
-        axL.set_xlim(xl, xh); axL.set_ylim(yl, yh)
-    elif zoom == 'manifold' and Z_poly is not None and len(simple_xy):
-        (xl, xh), (yl, yh) = manifold_zoom_limits(
-            Z_poly, simple_xy, buffer_left_bottom=zoom_buffer, pad_right=1.0, pad_top=1.0
-        )
-        axL.set_xlim(xl, xh); axL.set_ylim(yl, yh)
-    elif zoom == 'tight' and len(simple_xy):
-        x, y = simple_xy[:,0], simple_xy[:,1]
-        cx, cy = x.mean(), y.mean()
-        span = max(x.max()-x.min(), y.max()-y.min(), 3.0)
-        pad = 0.45*span
-        axL.set_xlim(cx-span/2-pad, cx+span/2+pad)
-        axL.set_ylim(cy-span/2-pad, cy+span/2+pad)
-    elif zoom == 'dataset' and dataset:
-        XY = np.array([coords[f] for f in dataset.keys() if f in coords])
-        xl, xh = np.percentile(XY[:,0], [2.0, 98.0]); yl, yh = np.percentile(XY[:,1], [2.0, 98.0])
-        axL.set_xlim(xl-0.1*(xh-xl), xh+0.1*(xh-xl))
-        axL.set_ylim(yl-0.1*(yh-yl), yh+0.1*(yh-yl))
-    
-    # Set fixed x-range to -10, 15 as requested
-    axL.set_xlim(-10, 15)
-
-    # ----- Add inset zoom for clustered points -----
-    dataset_list = [f for f in dataset.keys() if f in coords] if dataset else []
-    add_inset_zoom(axL, ordered_keys, coords, 
-                   indices_to_zoom=[1, 2, 4, 5, 6],
-                   inset_bounds=(0.50, 0.02, 0.48, 0.48),
-                   zoom_padding=0.5,
-                   dataset_formulas=dataset_list)
+    # Auto-scale to show all points + feasible region
+    if Z_poly is not None and len(simple_xy):
+        all_pts = np.vstack([simple_xy, Z_poly])
+    elif len(simple_xy):
+        all_pts = simple_xy
+    else:
+        all_pts = None
+    if all_pts is not None:
+        xpad = (all_pts[:, 0].max() - all_pts[:, 0].min()) * 0.12 + 1.0
+        ypad = (all_pts[:, 1].max() - all_pts[:, 1].min()) * 0.12 + 1.0
+        axL.set_xlim(all_pts[:, 0].min() - xpad, all_pts[:, 0].max() + xpad)
+        axL.set_ylim(all_pts[:, 1].min() - ypad, all_pts[:, 1].max() + ypad)
 
     fig.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Saved figure to: {save_path}")
+        save_fig(fig, save_path)
     return fig
 
 def plot_neb_only(summary_csv: str,
@@ -803,31 +845,34 @@ def plot_neb_only(summary_csv: str,
     if n == 1:
         axes = [axes]
     for r, (ax, comp_key) in enumerate(zip(axes, ordered_keys)):
-        vasp = neb[comp_key]['vasp']; g0 = neb[comp_key]['mlip_gen0']; g10 = neb[comp_key]['mlip_gen10']
-        x = np.arange(len(vasp))
-        ax.plot(x, vasp, '--', c='k', lw=1.4, label='VASP')
-        ax.plot(x, g0, '-', c=COLOR_ORANGE, lw=1.5, label='MLIP Gen0')
-        ax.plot(x, g10, '-', c=COLOR_BLUE, lw=1.5, label='MLIP Gen10')
-        ax.set_title(f"#{r+1}  {pretty_comp_label(comp_key)}", loc='left', fontweight='bold')
-        ax.set_ylabel('ΔE (eV)', fontweight='bold')
-        ax.tick_params()
-        # Format y-axis to 2 decimal places
+        vasp = neb[comp_key]['vasp']
+        g0 = neb[comp_key]['mlip_gen0']
+        g10 = neb[comp_key]['mlip_gen10']
+        ximg = np.arange(len(vasp))
+        ax.plot(ximg, vasp, '--', c='k', lw=1.4, label='VASP')
+        ax.plot(ximg, g0, '-', c=COLOR_ORANGE, lw=1.5, label='MLIP Gen 0')
+        ax.plot(ximg, g10, '-', c=COLOR_BLUE, lw=1.5, label='MLIP Gen 10')
+        formula = format_formula_subscript(comp_key)
+        ax.set_title(f"#{r+1}  {formula}", loc='left', fontweight='bold',
+                     fontsize=8, pad=2)
+        ax.set_ylabel('ΔE (eV)', fontweight='bold', fontsize=8)
+        ax.tick_params(labelsize=7)
         ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-        if r == n-1:
-            ax.set_xlabel('Image', fontweight='bold')
+        if r == n - 1:
+            ax.set_xlabel('Image', fontweight='bold', fontsize=8)
         else:
             ax.tick_params(labelbottom=False)
         if r == 0:
             if neb_legend_outside:
-                ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0, frameon=False)
+                ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0),
+                          borderaxespad=0.0, frameon=False, fontsize=7)
             else:
-                # Horizontal legend above with more clearance
-                ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.08), ncol=3, frameon=False)
+                ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.08),
+                          ncol=3, frameon=False, fontsize=7)
 
     fig.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Saved figure to: {save_path}")
+        save_fig(fig, save_path)
     return fig
 
 def plot_parity_only(summary_csv: str,
@@ -864,8 +909,7 @@ def plot_parity_only(summary_csv: str,
 
     fig.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Saved figure to: {save_path}")
+        save_fig(fig, save_path)
     return fig
 
 # -------------------------------- CLI --------------------------------

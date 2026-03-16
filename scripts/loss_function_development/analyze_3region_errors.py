@@ -26,6 +26,10 @@ from pathlib import Path
 import argparse
 from typing import Dict, List
 import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig
+
+set_pub_style()
 
 from loss_testing import (
     load_by_config,
@@ -190,7 +194,7 @@ def plot_3region_comparison(summary_df: pd.DataFrame, output_dir: Path):
                    fontsize=10, fontweight='bold')
     
     plt.tight_layout()
-    plt.savefig(output_dir / '3region_comparison.png', dpi=150, bbox_inches='tight')
+    save_fig(plt.gcf(), output_dir / '3region_comparison')
     print(f"✓ Saved 3-region comparison: {output_dir / '3region_comparison.png'}")
     plt.close()
 

@@ -14,7 +14,7 @@ This guide helps you set up the conda environment needed for using FORGE (Flexib
 
 The easiest way to set up the environment is using the provided setup script from the repository root:
 
-**For CUDA support (default - CUDA 12.8):**
+**For CUDA support (default - CUDA 12.9):**
 ```bash
 cd /home/myless/Packages/mlip_validation_paper2025
 chmod +x setup_forge_environment.sh
@@ -30,15 +30,16 @@ chmod +x setup_forge_environment.sh
 ```bash
 ./setup_forge_environment.sh cu118  # CUDA 11.8
 ./setup_forge_environment.sh cu128  # CUDA 12.8
+./setup_forge_environment.sh cu129  # CUDA 12.9 (default)
 ```
 
 The script will:
 1. Create the conda environment `forge_allegro_paper_env`
-2. Install PyTorch 2.7.1 with the appropriate CUDA/CPU support
+2. Install PyTorch 2.8.0 with the appropriate CUDA/CPU support
 3. Install cuequivariance packages (CUDA only)
 4. Install FORGE from `mstapelberg/forge` (feature/config-aware-stress branch)
 5. Install NequIP and Allegro (latest versions, compatible with any version)
-6. Install WandB and all dependencies
+6. Install WandB, SAW plotting dependency (`mpltern`), and all dependencies
 
 ### Manual Setup (Alternative)
 
@@ -53,11 +54,11 @@ If you prefer to set up manually:
 
 2. Install PyTorch (choose one):
    ```bash
-   # CUDA 12.8 (default)
-   pip install torch==2.7.1 --index-url https://download.pytorch.org/whl/cu128
+   # CUDA 12.9 (default)
+   pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cu129
    
    # CPU-only
-   pip install torch==2.7.1 --index-url https://download.pytorch.org/whl/cpu
+   pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
    ```
 
 3. Install CUDA packages (if using CUDA):
@@ -72,6 +73,7 @@ If you prefer to set up manually:
 4. Install other packages:
    ```bash
    pip install wandb
+   pip install mpltern
    pip install nequip
    pip install allegro
    ```
@@ -106,16 +108,20 @@ python -c "import allegro; print('Allegro imported successfully')"
 
 # Check WandB
 python -c "import wandb; print(f'WandB: {wandb.__version__}')"
+
+# Check plotting stack used by scripts/sawbench-plots/plot_paper_figures.py
+python -c "import numpy, pandas, matplotlib, mpltern; print('Plotting stack imported successfully')"
 ```
 
 ## Package Versions
 
 This environment includes:
-- **PyTorch 2.7.1** with CUDA 12.8 support (default) or CPU-only
+- **PyTorch 2.8.0** with CUDA 12.9 support (default) or CPU-only
 - **FORGE** from custom fork: `mstapelberg/forge` (feature/config-aware-stress branch)
 - **NequIP** - latest version (compatible with any version)
 - **Allegro** - latest version (compatible with any version)
 - **WandB** - latest version
+- **mpltern** - ternary plotting support (used by SAW paper plotting scripts)
 - **cuequivariance** packages (CUDA only) - required by FORGE
 - All their dependencies (installed automatically)
 

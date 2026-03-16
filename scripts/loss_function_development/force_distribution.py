@@ -6,25 +6,19 @@ from xyz files in data/gen_10_data.
 Creates publication-quality plots showing distributions with key statistics.
 """
 
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from ase.io import read
 
-# Publication quality settings
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Helvetica', 'Arial', 'DejaVu Sans']
-plt.rcParams['font.size'] = 10
-plt.rcParams['axes.linewidth'] = 1.2
-plt.rcParams['xtick.major.width'] = 1.2
-plt.rcParams['ytick.major.width'] = 1.2
-plt.rcParams['xtick.major.size'] = 4
-plt.rcParams['ytick.major.size'] = 4
-plt.rcParams['figure.dpi'] = 300
+# Shared publication style
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting_utils import set_pub_style, save_fig, TOL_BRIGHT, DOUBLE_COL, fig_size
 
-# Color scheme
-COLORS = ['#2A33C3', '#A35D00', '#0B7285', '#8F2D56', '#6E8B00']
+set_pub_style()
+COLORS = TOL_BRIGHT
 
 # Unit conversion
 GPA_PER_EVA3 = 160.21766208
@@ -542,7 +536,7 @@ def main():
     output_file = output_dir / "force_energy_stress_distributions.png"
     # pad_inches: padding around the entire figure when saving
     #             Smaller values = tighter margins (default 0.1-0.2)
-    plt.savefig(output_file, bbox_inches='tight', pad_inches=0.05, dpi=300)
+    save_fig(plt.gcf(), output_file)
     print(f"\nPlot saved to: {output_file}")
     plt.close()
 
